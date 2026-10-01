@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Compose owns all in-app theming (see StoreTheme). This theme only gives the activity a
+      dark, edge-to-edge window before the first frame so there is no white flash on launch.
+    -->
+    <style name="Theme.AppStore" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/store_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

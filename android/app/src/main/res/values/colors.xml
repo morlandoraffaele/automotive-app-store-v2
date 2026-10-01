@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- sRGB equivalent of the dark-theme "background" role (oklch 0.15 0.012 250) in the web app's globals.css. -->
+    <color name="store_background">#FF080C10</color>
+</resources>
