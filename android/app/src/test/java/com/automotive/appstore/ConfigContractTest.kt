@@ -1,6 +1,5 @@
 package com.automotive.appstore
 
-import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CatalogMapper
 import com.automotive.appstore.data.STORE_APP_PACKAGE
 import com.automotive.appstore.data.remote.App
@@ -52,12 +51,20 @@ class ConfigContractTest {
     }
 
     @Test
-    fun `every entry carries a known type`() {
-        val unknown = listings.filter { it.type == AppType.OTHER }
-        assertTrue(
-            unknown.isEmpty(),
-            "unrecognised types (new values need adding to AppType): ${unknown.map { it.id }}",
-        )
+    fun `every entry carries a non-blank type`() {
+        // The vocabulary is the backend's, so there is no enum to validate against — only that a
+        // published entry is not silently untyped, which would hide it from the type filter.
+        val untyped = listings.filter { it.type.isBlank() }
+        assertTrue(untyped.isEmpty(), "entries with no type: ${untyped.map { it.id }}")
+    }
+
+    @Test
+    fun `types are carried through verbatim and lower-cased`() {
+        // The filter chips are built from these values, so two spellings of one type would become
+        // two chips.
+        val distinct = listings.map { it.type }.distinct()
+        assertEquals(distinct.map { it.lowercase() }.distinct(), distinct)
+        assertEquals(listOf("custom", "media"), distinct.sorted())
     }
 
     @Test

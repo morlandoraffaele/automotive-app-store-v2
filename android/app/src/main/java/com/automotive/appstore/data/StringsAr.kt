@@ -32,9 +32,6 @@ object StringsAr {
 
         StringKey.TYPE_ALL to "كل الأنواع",
         StringKey.TYPE_FILTER to "التصفية حسب النوع",
-        StringKey.TYPE_MEDIA to "وسائط",
-        StringKey.TYPE_CUSTOM to "تطبيقات",
-        StringKey.TYPE_OTHER to "أخرى",
 
         StringKey.SEARCH_VOICE to "البحث بالصوت",
         StringKey.SEARCH_LISTENING to "جارٍ الاستماع…",
@@ -90,6 +87,10 @@ object StringsAr {
         StringKey.DETAIL_SIZE to "الحجم",
         StringKey.DETAIL_SIZE_VALUE to "{n} ميغابايت",
         StringKey.DETAIL_CHANNEL to "القناة",
+        StringKey.DETAIL_TAG_CODE to "الرمز",
+        StringKey.DETAIL_TAG_VERSION to "الإصدار",
+        StringKey.DETAIL_TAG_CHANNEL to "القناة",
+        StringKey.DETAIL_TAG_INSTALLED to "المُثبَّت",
         StringKey.DETAIL_TABS to "معلومات التطبيق",
         StringKey.DETAIL_OVERVIEW to "نظرة عامة",
         StringKey.DETAIL_WHATS_NEW to "ما هو جديد",

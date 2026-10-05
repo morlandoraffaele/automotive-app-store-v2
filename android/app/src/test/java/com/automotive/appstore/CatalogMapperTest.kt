@@ -1,7 +1,6 @@
 package com.automotive.appstore
 
 import com.automotive.appstore.data.AppIconName
-import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CatalogMapper
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.DEFAULT_CHANNEL_ID
@@ -10,6 +9,7 @@ import com.automotive.appstore.data.debug.HardcodedConfig
 import com.automotive.appstore.data.getReleaseForChannel
 import com.automotive.appstore.data.remote.App
 import com.automotive.appstore.data.remote.AppDetails
+import com.automotive.appstore.ui.screens.versionChangeLabel
 import com.google.gson.Gson
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -131,18 +131,22 @@ class CatalogMapperTest {
     }
 
     @Test
-    fun `maps the published type`() {
-        assertEquals(AppType.CUSTOM, CatalogMapper.toListing(radio).type)
-        assertEquals(AppType.MEDIA, CatalogMapper.toListing(bbc).type)
+    fun `maps the published type verbatim`() {
+        // No enum: the value is whatever the endpoint published, so a type this build has never
+        // seen still shows and filters correctly instead of collapsing into a catch-all.
+        assertEquals("custom", CatalogMapper.toListing(radio).type)
+        assertEquals("media", CatalogMapper.toListing(bbc).type)
     }
 
     @Test
-    fun `an unrecognised or missing type becomes OTHER rather than dropping the app`() {
-        // A type this build has never heard of must stay visible, not vanish from the catalogue.
-        assertEquals(AppType.OTHER, CatalogMapper.toListing(legacy).type)
-        assertEquals(AppType.OTHER, AppType.fromWire("holographic"))
-        assertEquals(AppType.OTHER, AppType.fromWire(null))
-        assertEquals(AppType.MEDIA, AppType.fromWire("  MEDIA  "))
+    fun `a missing or oddly cased type is normalised rather than invented`() {
+        assertEquals("", CatalogMapper.toListing(legacy).type)
+        assertEquals("media", CatalogMapper.toListing(
+            bbc.copy(details = bbc.details.copy(type = "  MEDIA  "))
+        ).type)
+        assertEquals("holographic", CatalogMapper.toListing(
+            bbc.copy(details = bbc.details.copy(type = "Holographic"))
+        ).type)
     }
 
     @Test
@@ -339,6 +343,16 @@ class CatalogMapperTest {
             listOf("org.radioplayer.automotive.radio", "com.bbc.sounds"),
             listings.map { it.id },
         )
+    }
+
+    // --- detail-header tag values ---------------------------------------------
+
+    @Test
+    fun `the version change label omits an arrow when there is nothing to move to`() {
+        assertNull(versionChangeLabel(from = null, to = "2"))
+        assertEquals("2", versionChangeLabel(from = "2", to = null))
+        assertEquals("2", versionChangeLabel(from = "2", to = "2"))
+        assertEquals("1 → 2", versionChangeLabel(from = "1", to = "2"))
     }
 
     // --- hardcoded catalogue override -----------------------------------------

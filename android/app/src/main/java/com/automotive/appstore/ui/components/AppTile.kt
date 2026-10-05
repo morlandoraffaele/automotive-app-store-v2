@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import com.automotive.appstore.data.AppListing
 import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.AppStatus
-import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.ui.theme.translator
@@ -107,7 +106,8 @@ fun AppTile(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CategoryTag(category = app.category)
+                //CategoryTag(category = app.category) // remove this we don't need
+                TypeTag(type = app.type)
                 if (showStatusText) {
                     Text(
                         text = statusLabel,
@@ -161,6 +161,67 @@ fun CategoryTag(category: CategoryId, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The pill showing an app's published `type`.
+ *
+ * Beside [CategoryTag] because the two answer different questions and both are worth seeing: the
+ * category is derived from keywords and is the browsing axis, while `type` comes straight from
+ * `config.json` and tells a driver what kind of app they are looking at.
+ *
+ * Renders nothing for an absent `type`, rather than an empty pill — the legacy document has no
+ * `type` field at all, and a row of blank tags would read as a rendering fault.
+ *
+ * The colour is derived from the type string so that each published value is visually stable
+ * without a hardcoded per-type mapping. Only text-safe tokens are used: `accent` is a *container*
+ * colour (`#CCE2EF` in the day palette) and is effectively invisible as small text.
+ */
+@Composable
+fun TypeTag(type: String, modifier: Modifier = Modifier) {
+    if (type.isBlank()) return
+
+    val colors = storeColors
+    val tint = typeTint(type)
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(tint.copy(alpha = 0.15f))
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .semantics { contentDescription = type },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = type,
+            style = StoreType.tileMeta,
+            color = tint,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * A stable colour for a `type` string.
+ *
+ * Hashed rather than looked up, because the vocabulary is backend-owned and cannot be enumerated
+ * here. The palette is restricted to the four tokens that are legible as small text in both themes;
+ * two types may therefore share a colour when they collide, which is acceptable for a decorative
+ * tag — the label is what carries the meaning.
+ */
+@Composable
+private fun typeTint(type: String): Color {
+    val colors = storeColors
+    val palette = listOf(
+        colors.primary,
+        colors.success,
+        colors.warning,
+        colors.destructive,
+    )
+    val hash = type.hashCode()
+    // mod on a Long, so a negative String.hashCode still indexes the palette.
+    val index = ((if (hash == Int.MIN_VALUE) 0 else hash).toLong().mod(palette.size.toLong())).toInt()
+    return palette[index]
+}
+
 /** Maps a [CategoryId] to its translation key, mirroring the web `category.${id}` lookup. */
 fun categoryLabelKey(category: CategoryId): StringKey = when (category) {
     CategoryId.NAVIGATION -> StringKey.CATEGORY_NAVIGATION
@@ -169,13 +230,6 @@ fun categoryLabelKey(category: CategoryId): StringKey = when (category) {
     CategoryId.COMMUNICATION -> StringKey.CATEGORY_COMMUNICATION
     CategoryId.UTILITIES -> StringKey.CATEGORY_UTILITIES
     CategoryId.PARKED -> StringKey.CATEGORY_PARKED
-}
-
-/** Maps an [AppType] to its translation key. */
-fun typeLabelKey(type: AppType): StringKey = when (type) {
-    AppType.MEDIA -> StringKey.TYPE_MEDIA
-    AppType.CUSTOM -> StringKey.TYPE_CUSTOM
-    AppType.OTHER -> StringKey.TYPE_OTHER
 }
 
 /**

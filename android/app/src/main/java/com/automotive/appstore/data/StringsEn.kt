@@ -30,9 +30,6 @@ object StringsEn {
 
         StringKey.TYPE_ALL to "All",
         StringKey.TYPE_FILTER to "Filter by type",
-        StringKey.TYPE_MEDIA to "Media",
-        StringKey.TYPE_CUSTOM to "Custom",
-        StringKey.TYPE_OTHER to "Other",
 
         StringKey.SEARCH_VOICE to "Search by voice",
         StringKey.SEARCH_LISTENING to "Listening…",
@@ -91,6 +88,10 @@ object StringsEn {
         StringKey.DETAIL_SIZE to "Size",
         StringKey.DETAIL_SIZE_VALUE to "{n} MB",
         StringKey.DETAIL_CHANNEL to "Channel",
+        StringKey.DETAIL_TAG_CODE to "Code",
+        StringKey.DETAIL_TAG_VERSION to "Version",
+        StringKey.DETAIL_TAG_CHANNEL to "Channel",
+        StringKey.DETAIL_TAG_INSTALLED to "Installed",
         StringKey.DETAIL_TABS to "App information",
         StringKey.DETAIL_OVERVIEW to "Overview",
         StringKey.DETAIL_WHATS_NEW to "What’s new",
@@ -132,7 +133,7 @@ object StringsEn {
         StringKey.CHANNELS_SWITCHED to "Now on {name}.",
         StringKey.CHANNELS_SWITCHED_UPDATE to "Now on {name}. Version {version} is ready to install.",
 
-        StringKey.SETTINGS_TITLE to "Store settings",
+        StringKey.SETTINGS_TITLE to "Settings",
         StringKey.SETTINGS_UPDATES to "Updates",
         StringKey.SETTINGS_AUTO_UPDATE to "Auto-update apps",
         StringKey.SETTINGS_AUTO_UPDATE_DESC to "Install app updates automatically when parked",

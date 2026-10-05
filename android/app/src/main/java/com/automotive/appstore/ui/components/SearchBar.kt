@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.unit.dp
-import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.ui.theme.translator
@@ -135,25 +135,21 @@ val CATEGORY_ORDER: List<CategoryId> = listOf(
 )
 
 /**
- * The `type` chips, in the order the published `type` values should read.
- *
- * Sourced from `config.json` rather than derived, so [AppType.OTHER] — the catch-all for types this
- * build does not recognise — is listed last: it is a safety net, not a category to browse.
- */
-val TYPE_ORDER: List<AppType> = listOf(AppType.MEDIA, AppType.CUSTOM, AppType.OTHER)
-
-/**
  * The horizontally scrolling `type` chips.
  *
  * Shaped exactly like [CategoryFilterRow] because it is the same control over a different axis: the
  * catalogue carries both, so the grid is the intersection of the two selections.
+ *
+ * [types] is the set of values actually present in the catalogue rather than a hardcoded list —
+ * `config.json` owns that vocabulary and extends it without an app release, so enumerating it here
+ * would mean a backend addition needed a client change to become visible or filterable.
  */
 @Composable
 fun TypeFilterRow(
-    selected: AppType?,
-    onSelect: (AppType?) -> Unit,
+    selected: String?,
+    onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
-    types: List<AppType> = TYPE_ORDER,
+    types: List<String>,
 ) {
     val filterLabel = translator.t(StringKey.TYPE_FILTER)
     Row(
@@ -169,7 +165,8 @@ fun TypeFilterRow(
         )
         types.forEach { type ->
             FilterChip(
-                label = translator.t(typeLabelKey(type)),
+                // Shown exactly as published, so the label always matches what the endpoint says.
+                label = type,
                 selected = selected == type,
                 onClick = { onSelect(type) },
             )

@@ -255,6 +255,20 @@ private fun InstalledRow(
 }
 
 /**
+ * `1.2.3 → 1.2.4`, or just `1.2.3` when there is nothing to move to.
+ *
+ * Pure so it can be reused as a tag value as well as rendered as the web's split-styled row. The
+ * arrow is a literal rather than a bidi isolate: the detail header lays it out as one pill, and the
+ * arrow reads the same in both directions.
+ *
+ * @return `null` when [from] is unknown, so callers can omit the field entirely.
+ */
+fun versionChangeLabel(from: String?, to: String?): String? {
+    if (from == null) return null
+    return if (to != null && to != from) "$from → $to" else from
+}
+
+/**
  * `1.2.3 → 1.2.4`, shown only when the versions actually differ.
  *
  * Port of the web `VersionChange`; the arrow direction follows the layout direction, so it

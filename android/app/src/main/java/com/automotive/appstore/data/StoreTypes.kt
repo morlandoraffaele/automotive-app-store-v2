@@ -19,33 +19,7 @@ enum class CategoryId {
 enum class CategoryFilterValue { ALL, CATEGORY }
 
 /**
- * The `type` field the catalogue now publishes, and the axis the catalogue filter uses.
- *
- * Unlike [CategoryId] — which [CatalogMapper] has to guess from keywords because the endpoint
- * publishes no category — this is real upstream data, so the filter reflects the catalogue instead
- * of a heuristic.
- *
- * `custom` is a full app with its own UI; `media` is a headless app controlled over a media
- * session. [OTHER] is the deliberate catch-all: it keeps a type this build has never heard of
- * visible in the grid rather than silently hiding those apps, and covers the entries the legacy
- * document left untyped.
- */
-enum class AppType {
-    MEDIA,
-    CUSTOM,
-    OTHER;
-
-    companion object {
-        /** Maps the wire value, case- and whitespace-insensitively. */
-        fun fromWire(value: String?): AppType = when (value?.trim()?.lowercase()) {
-            "media" -> MEDIA
-            "custom" -> CUSTOM
-            else -> OTHER
-        }
-    }
-}
-
-/** Which glyph an app tile draws. Mirrors the `AppIconName` union. */
+ * Which glyph an app tile draws. Mirrors the `AppIconName` union. */
 enum class AppIconName {
     NAVIGATION,
     MUSIC,
@@ -128,8 +102,19 @@ data class AppListing(
     val mediaServiceClass: String? = null,
     /** The `versionCode` field of `config.json`: an Android `versionCode`. */
     val remoteVersionCode: Int = 0,
-    /** The published `type`, which the catalogue filter groups by. */
-    val type: AppType = AppType.OTHER,
+    /**
+     * The published `type`, normalised to lower case; empty when the catalogue omits it.
+     *
+     * Deliberately a `String` and not an enum. The vocabulary is owned by the backend and grows
+     * without an app release — modelling it as a closed enum silently folded every new value into
+     * a single catch-all, which made the whole catalogue read as one type. Keeping it open means a
+     * value this build has never seen is shown and filterable exactly as published, and an absent
+     * `type` is visibly absent rather than being invented.
+     *
+     * The catalogue filter derives its chips from the values actually present, so no hardcoded
+     * list has to be updated when the backend adds one.
+     */
+    val type: String = "",
     /**
      * The published `versionName` (e.g. `3.0.0-rc.20`), for display.
      *

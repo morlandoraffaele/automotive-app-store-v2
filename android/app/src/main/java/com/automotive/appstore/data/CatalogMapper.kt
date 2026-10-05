@@ -107,7 +107,9 @@ object CatalogMapper {
             iconUrl = details.icon,
             mediaServiceClass = details.cls,
             remoteVersionCode = details.remoteVersionCode,
-            type = AppType.fromWire(details.type),
+            // Normalised, not mapped to an enum: the vocabulary is the backend's to extend, and an
+            // unrecognised value must still be shown and filterable as published.
+            type = details.type?.trim()?.lowercase().orEmpty(),
             versionName = details.versionName?.takeIf { it.isNotBlank() },
         )
     }

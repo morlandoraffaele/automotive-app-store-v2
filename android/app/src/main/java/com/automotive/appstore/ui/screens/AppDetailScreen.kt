@@ -38,6 +38,7 @@ import com.automotive.appstore.StoreViewModel
 import com.automotive.appstore.data.AppListing
 import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.AppStatus
+import com.automotive.appstore.data.CatalogMapper
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.DEFAULT_CHANNEL_ID
 import com.automotive.appstore.data.PermissionId
@@ -46,6 +47,8 @@ import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppActionButton
 import com.automotive.appstore.ui.components.AppIconSize
 import com.automotive.appstore.ui.components.AppIconTile
+import com.automotive.appstore.ui.components.MetaTag
+import com.automotive.appstore.ui.components.MetaTagRow
 import com.automotive.appstore.ui.components.SkeletonBlock
 import com.automotive.appstore.ui.components.StateMessage
 import com.automotive.appstore.ui.components.StatusChip
@@ -159,7 +162,8 @@ fun AppDetailScreen(
 /** The app summary card with its primary action. */
 @Composable
 private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewModel) {
-    val displayVersion = state.currentVersion ?: state.release?.version.orEmpty()
+    // The target version only means something while an update is actually pending or in flight;
+// otherwise the installed tag would claim a move that is not happening.
     val showTarget = state.status == AppStatus.UPDATE_AVAILABLE || state.status == AppStatus.DOWNLOADING
 
     // Delete only makes sense for an app that is actually on the device, and never while a task is
@@ -202,27 +206,48 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                MetaItem(translator.t(StringKey.DETAIL_VERSION)) {
-                    VersionChange(
-                        from = displayVersion,
-                        to = if (showTarget) state.targetVersion else null,
+            MetaTagRow {
+                // One distinctly coloured pill per field. The four tints are all *text-safe* tokens
+                // and all distinct: `accent` is deliberately avoided because it is a container
+                // colour (#CCE2EF in the day palette) and is effectively invisible as small text.
+                MetaTag(
+                    label = translator.t(StringKey.DETAIL_TAG_CODE),
+                    value = CatalogMapper.versionLabel(app.remoteVersionCode),
+                    tint = storeColors.primary,
+                )
+                // Absent on most media entries, so the pill is omitted rather than shown empty.
+                app.versionName?.let { versionName ->
+                    MetaTag(
+                        label = translator.t(StringKey.DETAIL_TAG_VERSION),
+                        value = versionName,
+                        tint = storeColors.success,
                     )
                 }
-                if (state.channel != null) {
-                    MetaItem(translator.t(StringKey.DETAIL_CHANNEL)) {
-                        Text(
-                            text = state.channel.name,
-                            // Web `text-lg` in the header `dl`.
-                            style = StoreType.lg,
-                            color = if (state.channel.id != DEFAULT_CHANNEL_ID) {
-                                storeColors.warning
-                            } else {
-                                storeColors.foreground
-                            },
-                            maxLines = 1,
-                        )
-                    }
+                // Falls back to the release's own channel id, which is what the catalogue published
+                // even when no matching ChannelDefinition exists.
+                val channelLabel = state.channel?.name
+                    ?: listingChannelId(app)
+                if (channelLabel != null) {
+                    // Fixed colour rather than varying by channel: the row's contract is that each
+                    // field has its own colour, and letting channel borrow the versionCode tint made
+                    // the two indistinguishable.
+                    MetaTag(
+                        label = translator.t(StringKey.DETAIL_TAG_CHANNEL),
+                        value = channelLabel,
+                        tint = storeColors.warning,
+                    )
+                }
+                // The installed-vs-published comparison, which is install state rather than
+                // published metadata and so does not belong in the published-metadata row.
+                versionChangeLabel(
+                    from = state.currentVersion,
+                    to = if (showTarget) state.targetVersion else null,
+                )?.let { installed ->
+                    MetaTag(
+                        label = translator.t(StringKey.DETAIL_TAG_INSTALLED),
+                        value = installed,
+                        tint = storeColors.destructive,
+                    )
                 }
             }
 
@@ -324,20 +349,15 @@ private fun DeleteConfirmDialog(
     )
 }
 
-/** A `label: value` pair from the detail header's definition list. */
-@Composable
-private fun MetaItem(label: String, value: @Composable () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = label,
-            // Web `text-lg` meta label (`dl` inherits text-lg).
-            style = StoreType.lg,
-            color = storeColors.mutedForeground,
-            maxLines = 1,
-        )
-        value()
-    }
-}
+/**
+ * The channel the catalogue published this entry on.
+ *
+ * Read from the listing rather than `AppState.channel`, which resolves only when a matching
+ * [com.automotive.appstore.data.ChannelDefinition] exists. The published id is the fact; the
+ * definition is a presentation nicety, and it is absent for channels the store does not describe.
+ */
+private fun listingChannelId(app: AppListing): String? =
+    app.releases.firstOrNull()?.channelId
 
 /** The segmented tab bar, matching the web `role="tablist"` block. */
 @Composable

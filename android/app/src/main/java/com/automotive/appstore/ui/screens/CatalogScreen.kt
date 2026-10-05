@@ -29,7 +29,6 @@ import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.STORE_APP_PACKAGE
-import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppTile
@@ -40,9 +39,7 @@ import com.automotive.appstore.ui.components.SearchBar
 import com.automotive.appstore.ui.components.StateMessage
 import com.automotive.appstore.ui.components.StoreIcons
 import com.automotive.appstore.ui.components.TileSkeletonGrid
-import com.automotive.appstore.ui.components.TYPE_ORDER
 import com.automotive.appstore.ui.components.TypeFilterRow
-import com.automotive.appstore.ui.components.typeLabelKey
 import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.theme.translator
@@ -81,7 +78,8 @@ fun CatalogScreen(
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
 
     var category by remember { mutableStateOf<CategoryId?>(null) }
-    var type by remember { mutableStateOf<AppType?>(null) }
+    // The published `type` value, verbatim. Null means "All".
+    var type by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
 
     val catalog = snapshot.catalog
@@ -116,11 +114,20 @@ fun CatalogScreen(
         CATEGORY_ORDER.filter { it in present }
     }
 
-    // Same rule for `type`: only offer chips the catalogue actually contains, so a catalogue that
-    // publishes only `media` and `custom` never shows an empty "Other" chip.
+    // `type` chips are derived from the values the catalogue actually contains. Nothing is
+    // hardcoded: the vocabulary belongs to `config.json` and grows without an app release, so a
+    // new value has to become visible and filterable the moment it is published.
+    //
+    // Ordered most-common-first so the busiest type leads, then alphabetically so the row is
+    // stable between loads rather than reshuffling with catalogue order.
     val availableTypes = remember(browsable) {
-        val present = browsable.map { it.type }.toSet()
-        TYPE_ORDER.filter { it in present }
+        browsable.map { it.type }
+            .filter { it.isNotBlank() }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key }
     }
 
     // A category or type can vanish when the catalogue reloads (or a search narrows nothing).
@@ -222,7 +229,7 @@ fun CatalogScreen(
                                 translator.t(StringKey.SEARCH_RESULTS_FOR, "q" to query)
                             // Two filters are active at once, so the heading names the narrower one:
                             // `type` is the published axis, `category` is the keyword-derived one.
-                            type != null -> translator.t(typeLabelKey(type!!))
+                            type != null -> type!!
                             else -> translator.t(category?.let(::categoryLabelKey) ?: StringKey.CATEGORY_ALL)
                         },
                         count = visible.size,

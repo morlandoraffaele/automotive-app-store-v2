@@ -23,9 +23,10 @@ import com.google.gson.annotations.SerializedName
  *    This matters because a silent fallback is not possible otherwise: `versionCode` is the number
  *    every install/update decision is made on, and reading it as 0 would make every app look
  *    permanently up to date.
- *  - Everything genuinely new is nullable with a defined fallback, so a missing `type` degrades to
- *    [org.radioplayer.automotive.appstore.data.AppType.OTHER] rather than dropping the app from the
- *    catalogue.
+ *  - Everything genuinely new is nullable with a defined fallback. `type` in particular is carried
+ *    as an open string rather than an enum, so a value this build has never seen is shown and
+ *    filtered as published instead of collapsing into a catch-all; an absent one normalises to the
+ *    empty string, which the tile renders as no tag and the catalogue filter ignores.
  *
  * Remove the alternate and the null handling once production serves only the new document.
  */
@@ -44,7 +45,7 @@ data class AppDetails(
     /** Android `versionCode`. The legacy document called this `version`. */
     @SerializedName(value = "versionCode", alternate = ["version"])
     val remoteVersionCode: Int = 0,
-    /** `media` or `custom`. Unrecognised values map to `AppType.OTHER`. */
+    /** A single published type, e.g. `media` or `custom`. Open vocabulary — not an enum. */
     @SerializedName("type") val type: String? = null,
     /** e.g. `stable`, `demo`, `release-candidate`, `alpha`. */
     @SerializedName("channel") val channel: String? = null,

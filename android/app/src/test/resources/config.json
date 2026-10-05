@@ -64,8 +64,8 @@
         "cls": "service.RadioplayerService",
         "url": "https://automotive.radioplayer.org/store/apps/org.radioplayer.radioplayercar.online.headless.renault/source.apk",
         "icon": "https://automotive.radioplayer.org/store/apps/org.radioplayer.radioplayercar.online.headless.renault/app_icon.png",
-        "versionName": "",
-        "versionCode": 3046,
+        "versionName": "1.0.0-alpha.1",
+        "versionCode": 3500,
         "type": "custom",
         "channel": "alpha"
     },
