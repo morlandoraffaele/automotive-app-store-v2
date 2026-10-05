@@ -42,6 +42,7 @@ import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreType
+import com.automotive.appstore.ui.theme.screenPadding
 import com.automotive.appstore.ui.theme.storeColors
 import com.automotive.appstore.ui.theme.storeMetrics
 import com.automotive.appstore.ui.theme.translator
@@ -112,7 +113,7 @@ fun ChannelsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(storeColors.background)
-            .padding(storeMetrics.contentPadding),
+            .screenPadding(),
         verticalArrangement = Arrangement.spacedBy(storeMetrics.sectionGap),
     ) {
         item {

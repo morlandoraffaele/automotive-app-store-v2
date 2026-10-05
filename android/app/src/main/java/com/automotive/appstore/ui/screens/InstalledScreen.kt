@@ -42,6 +42,7 @@ import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.statusLabelFor
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreType
+import com.automotive.appstore.ui.theme.screenPadding
 import com.automotive.appstore.ui.theme.storeColors
 import com.automotive.appstore.ui.theme.storeMetrics
 import com.automotive.appstore.ui.theme.translator
@@ -76,7 +77,7 @@ fun InstalledScreen(
             modifier = modifier
                 .fillMaxSize()
                 .background(storeColors.background)
-                .padding(storeMetrics.contentPadding)
+                .screenPadding()
         ) {
             TileSkeletonGrid(count = 4)
         }
@@ -112,7 +113,7 @@ fun InstalledScreen(
         modifier = modifier
             .fillMaxSize()
             .background(storeColors.background)
-            .padding(storeMetrics.contentPadding),
+            .screenPadding(),
         verticalArrangement = Arrangement.spacedBy(storeMetrics.sectionGap * 1.5f),
     ) {
         if (needsAttention.isNotEmpty()) {
@@ -190,7 +191,7 @@ private fun InstalledRow(
             horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Box {
-                AppIconTile(icon = app.icon, color = app.iconColor)
+                AppIconTile(icon = app.icon, color = app.iconColor, iconUrl = app.iconUrl)
                 StatusBadge(
                     status = state.status,
                     progress = state.progress,
@@ -244,6 +245,7 @@ private fun InstalledRow(
             onUpdate = viewModel::update,
             onCancel = viewModel::cancel,
             onRetry = viewModel::retry,
+            onOpen = viewModel::launch,
         )
     }
 }

@@ -1,0 +1,15 @@
+android_app_import {
+    name: "R-Store",
+    apk: "appstore-release-unsigned.apk",
+    required: ["privapp_permissions_com.automotive.appstore"],
+
+    privileged: true,
+    certificate: "platform",
+}
+
+prebuilt_etc {
+    name: "privapp_permissions_com.automotive.appstore",
+    sub_dir: "permissions",
+    src: "privapp-permissions-com.automotive.appstore",
+    filename_from_src: true,
+}

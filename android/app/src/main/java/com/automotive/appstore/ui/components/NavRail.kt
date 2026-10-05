@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,7 +28,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.automotive.appstore.data.StringKey
-import com.automotive.appstore.data.ThemeMode
 import com.automotive.appstore.navigation.StoreDestination
 import com.automotive.appstore.ui.theme.StoreType
 import com.automotive.appstore.ui.theme.storeColors
@@ -56,9 +56,7 @@ private data class RailItem(
 fun NavRail(
     selected: StoreDestination,
     updateCount: Int,
-    themeMode: ThemeMode,
     onSelect: (StoreDestination) -> Unit,
-    onToggleTheme: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val items = listOf(
@@ -67,14 +65,8 @@ fun NavRail(
         RailItem(StoreDestination.Settings, StringKey.NAV_SETTINGS, StoreIcons.Settings),
     )
     val railLabel = translator.t(StringKey.NAV_MAIN)
-    val themeLabel = if (themeMode == ThemeMode.NIGHT) {
-        translator.t(StringKey.THEME_TOGGLE_TO_DAY)
-    } else {
-        translator.t(StringKey.THEME_TOGGLE_TO_NIGHT)
-    }
 
     val metrics = storeMetrics
-    val railPadding = (metrics.railItemSize - 76.dp).coerceAtLeast(0.dp) / 3f
 
     Column(
         modifier = modifier
@@ -84,14 +76,13 @@ fun NavRail(
             .padding(vertical = 12.dp)
             .semantics { contentDescription = railLabel },
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        // Scrollable so that on a short window the tiles below Settings and the theme
-        // toggle stay reachable instead of being pushed out of the viewport.
+        // Scrollable so that on a short window every tile stays reachable instead of being
+        // pushed out of the viewport.
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(vertical = railPadding),
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -111,16 +102,6 @@ fun NavRail(
                 )
             }
         }
-
-        RailTile(
-            label = "",
-            contentDescription = themeLabel,
-            icon = if (themeMode == ThemeMode.NIGHT) StoreIcons.Sun else StoreIcons.Moon,
-            selected = false,
-            badge = 0,
-            onClick = onToggleTheme,
-            modifier = Modifier.padding(vertical = railPadding),
-        )
     }
 }
 
@@ -141,11 +122,14 @@ private fun RailTile(
     modifier: Modifier = Modifier,
 ) {
     val colors = storeColors
-    val shape = RoundedCornerShape(colors.radiusXl)
+    // Fully rounded rather than the web's large radius: the tile is now square and icon-only, so a
+    // pill reads as a compact chip instead of a card.
+    val shape = RoundedCornerShape(percent = 50)
     val container = if (selected) colors.primary else Color.Transparent
     val content = if (selected) colors.primaryForeground else colors.mutedForeground
 
     val metrics = storeMetrics
+    val showsLabel = label.isNotEmpty() && metrics.railShowsLabels
 
     Surface(
         onClick = onClick,
@@ -157,15 +141,20 @@ private fun RailTile(
         color = container,
         contentColor = content,
     ) {
+        // Centred in the tile rather than top-aligned: the icon is the whole affordance now, and
+        // centring keeps it optically balanced whether or not the label is shown.
         Column(
-            modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(metrics.railItemSize * 0.4f),
+            ) {
                 Icon(
                     source = IconSource.Vector(icon),
-                    size = metrics.railItemSize * 0.38f,
+                    size = metrics.railItemSize * 0.4f,
                     color = content,
                 )
                 if (badge > 0) {
@@ -176,7 +165,7 @@ private fun RailTile(
                     )
                 }
             }
-            if (label.isNotEmpty() && metrics.railShowsLabels) {
+            if (showsLabel) {
                 Text(
                     text = label,
                     // Web `text-sm font-semibold` = 15.75px; `sub3` is Step1 = 18sp.
@@ -185,6 +174,7 @@ private fun RailTile(
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }

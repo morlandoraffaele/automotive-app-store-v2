@@ -6,3 +6,12 @@ local.properties
 *.iml
 .DS_Store
 captures/
+.kotlin/
+
+# Keystore files
+# The platform key is required to sign the store: INSTALL_PACKAGES is a
+# signature|privileged permission, so a debug-signed APK cannot install apps.
+# These come from the platform build and must never be committed.
+*.jks
+*.keystore
+keystore.properties

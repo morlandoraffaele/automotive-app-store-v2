@@ -115,9 +115,13 @@ fun TopBar(
                     onClick = {},
                     icon = StoreIcons.Updating,
                     variant = TouchVariant.SECONDARY,
+                    size = TouchSize.ICON,
                     enabled = false,
                 )
             } else {
+                // Kept labelled: an icon alone is ambiguous next to the update-count pill, and the
+                // label is what tells a driver what the control does. Compactness comes from the
+                // shorter "Update" wording below, not from dropping the text.
                 TouchButton(
                     label = translator.t(StringKey.TOPBAR_UPDATE_ALL),
                     onClick = onUpdateAll,

@@ -9,8 +9,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import com.automotive.appstore.AppStoreApplication
 import com.automotive.appstore.data.AppIconName
 import org.radioplayer.automotive.designsystem.components.primitives.icon.Icon
 import org.radioplayer.automotive.designsystem.components.primitives.icon.IconSource
@@ -41,6 +46,7 @@ fun AppIconTile(
     color: Int,
     modifier: Modifier = Modifier,
     size: AppIconSize = AppIconSize.MD,
+    iconUrl: String? = null,
 ) {
     val shape = RoundedCornerShape(size.corner)
     Box(
@@ -50,12 +56,29 @@ fun AppIconTile(
             .background(Color(color)),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            source = IconSource.Vector(StoreIcons.forApp(icon)),
-            size = size.glyph,
-            color = Color.White,
-            contentDescription = null,
-        )
+        // The catalogue publishes a real publisher icon per app (config.json `icon`). Show it when
+        // it resolves, and keep the tinted glyph underneath as the placeholder, so a slow or failed
+        // fetch degrades to the coloured tile rather than to nothing.
+        if (iconUrl.isNullOrBlank()) {
+            Icon(
+                source = IconSource.Vector(StoreIcons.forApp(icon)),
+                size = size.glyph,
+                color = Color.White,
+                contentDescription = null,
+            )
+        } else {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(iconUrl)
+                    .build(),
+                // Explicit loader: the default Coil singleton has no network fetcher in Coil 3, so
+                // it would fail to resolve these URLs.
+                imageLoader = AppStoreApplication.imageLoader,
+                contentDescription = null,
+                modifier = Modifier.size(size.box),
+                contentScale = ContentScale.Fit,
+            )
+        }
     }
 }
 

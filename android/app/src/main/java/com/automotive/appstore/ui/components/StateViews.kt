@@ -52,9 +52,11 @@ fun StateMessage(
     val iconTint = if (destructive) colors.destructive else colors.mutedForeground
 
     Column(
+        // Uses the shared screen padding rather than a hardcoded 24dp/48dp, so an empty state
+        // sits on the same margin as the populated layout it replaces.
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 48.dp)
+            .padding(horizontal = storeMetrics.contentPadding, vertical = storeMetrics.contentPadding * 2f)
             .semantics { liveRegion = LiveRegionMode.Polite },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp),

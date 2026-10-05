@@ -11,7 +11,68 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import org.radioplayer.automotive.designsystem.subsystems.Typography
+import android.app.Activity
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpSize
+import androidx.window.layout.WindowMetricsCalculator
+
+/**
+ * A [WindowSizeClass] that describes the *display*, not the currently visible slice of it.
+ *
+ * ## Why this exists
+ *
+ * The library's own `calculateWindowSizeClass(activity)` reads the window bounds and feeds them
+ * straight into the height/width breakpoints, with no notion of the IME. Its only recomposition
+ * trigger is `LocalConfiguration.current`, and this activity declares
+ * `configChanges="...|keyboardHidden|..."`, so opening the keyboard pushes a configuration change
+ * and the size class is re-derived from the keyboard-shrunk height.
+ *
+ * On a head unit that is the difference between an Expanded and a Compact height class, and
+ * `StoreMetrics.resolve` strips the whole shell down when height goes Compact: rail labels, the
+ * top-bar clock and the search hint all disappear and the type scale drops to 0.82. Typing in the
+ * search box should not dismantle the UI.
+ *
+ * ## What this does instead
+ *
+ * Adds the current IME inset back onto the reported bounds, so the breakpoints are computed
+ * against the height the window would have with the keyboard closed. The result is stable across
+ * keyboard show/hide, while genuine resizes (rotation, multi-display, freeform) still move it.
+ *
+ * The `keyboardHidden` configuration change is deliberately left in `configChanges`: it is what
+ * makes this recompose at all, and the IME inset is re-read on every pass.
+ */
+@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+@Composable
+fun rememberStableWindowSizeClass(activity: Activity): WindowSizeClass {
+    // Subscribes to configuration changes; without this read the size class is computed once.
+    LocalConfiguration.current
+    val density = LocalDensity.current
+
+    val bounds = WindowMetricsCalculator.getOrCreate()
+        .computeCurrentWindowMetrics(activity)
+        .bounds
+
+    // Read as state so the inset is observed rather than sampled once.
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+
+    // Width is never affected by the keyboard; only the height needs correcting.
+    val size = with(density) {
+        DpSize(
+            width = bounds.width().toDp(),
+            height = bounds.height().toDp() + imeBottomPx.toDp(),
+        )
+    }
+
+    return remember(size) { WindowSizeClass.calculateFromSize(size) }
+}
 
 /**
  * Every layout dimension that has to change with the size of the window.
@@ -63,8 +124,8 @@ data class StoreMetrics(
             contentPadding = 24.dp,
             sectionGap = 24.dp,
             itemGap = 16.dp,
-            railWidth = 120.dp,
-            railItemSize = 96.dp,
+            railWidth = 96.dp,
+            railItemSize = 84.dp,
             railShowsLabels = true,
             topBarHeight = 96.dp,
             topBarShowsStatus = true,
@@ -80,6 +141,21 @@ data class StoreMetrics(
 
 /** The metrics for the current window, provided by [StoreTheme]. */
 val LocalStoreMetrics = staticCompositionLocalOf { StoreMetrics.Default }
+
+/**
+ * Applies [StoreMetrics.contentPadding] to a screen's content.
+ *
+ * Screens used to each remember to do this, and one of them (Settings) only applied a top
+ * spacer, so its cards ran flush against both edges while every other screen had a margin. One
+ * named modifier makes the margin impossible to forget and keeps the value sourced from
+ * [StoreMetrics] rather than from a per-screen literal.
+ *
+ * System and navigation insets are *not* handled here: the shell in `MainActivity` already
+ * insets its whole row by `WindowInsets.safeContent`, so adding them again would double-count.
+ */
+@Composable
+fun Modifier.screenPadding(metrics: StoreMetrics = storeMetrics): Modifier =
+    this.padding(metrics.contentPadding)
 
 /**
  * Floor for rail tiles: the design system's `sizes.minTapArea`, which encodes the
@@ -117,16 +193,19 @@ fun StoreMetrics.Companion.resolve(windowSizeClass: WindowSizeClass): StoreMetri
         sectionGap = if (short || compact) 16.dp else 24.dp,
         itemGap = if (short || compact) 12.dp else 16.dp,
         railWidth = when {
-            short -> 96.dp
-            compact -> 88.dp
-            else -> 120.dp
-        },
-        // Rail tiles must never go below the 76dp driver-distraction minimum, so the compact
-        // branch is floored there rather than shrinking further.
-        railItemSize = when {
-            short -> 80.dp
-            compact -> MIN_RAIL_ITEM
+            // Minimal by default: the rail carries an icon and a label only, so it is sized to the
+            // tile rather than to the web's 120px column of icon-over-text blocks.
+            short -> 88.dp
+            compact -> 80.dp
             else -> 96.dp
+        },
+        // Rail tiles must never go below the 76dp driver-distraction minimum, so this is floored
+        // there rather than shrinking further. The tile is square with the glyph centred in it, so
+        // a smaller tile still reads cleanly.
+        railItemSize = when {
+            short -> MIN_RAIL_ITEM
+            compact -> MIN_RAIL_ITEM
+            else -> 84.dp
         },
         railShowsLabels = !compact && !short,
         topBarHeight = if (short || compact) 72.dp else 96.dp,

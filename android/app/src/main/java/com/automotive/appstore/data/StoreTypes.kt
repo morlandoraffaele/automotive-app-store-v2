@@ -77,6 +77,19 @@ data class AppListing(
     val permissions: List<PermissionId>,
     val screenshots: List<Int>,
     val releases: List<ChannelRelease>,
+    // Remote catalogue fields, ported in from the `config.json` contract. Every one of them has
+    // a default so the existing `MockStoreData` fixtures and their tests keep compiling, and so
+    // the UI — which never reads them — needs no change.
+    /** The installed package, which is also the key `config.json` publishes the app under. */
+    val packageName: String = id,
+    /** Pre-computed APK URL; the installer downloads this URL directly. */
+    val apkUrl: String? = null,
+    /** Pre-computed icon URL. */
+    val iconUrl: String? = null,
+    /** The media-browser service class the app publishes, if any. */
+    val mediaServiceClass: String? = null,
+    /** The `version` field of `config.json`: an Android `versionCode`. */
+    val remoteVersionCode: Int = 0,
 )
 
 data class InstalledRecord(

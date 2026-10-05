@@ -71,6 +71,13 @@ object StringsEn {
         StringKey.ACTION_RETRY to "Retry",
         StringKey.ACTION_INSTALLING to "Installing…",
 
+        StringKey.ACTION_DELETE to "Delete",
+        StringKey.DETAIL_DELETE_CONFIRM_TITLE to "Delete {name}?",
+        StringKey.DETAIL_DELETE_CONFIRM_BODY to "{name} will be removed from this device. " +
+            "You can install it again from the store at any time.",
+        StringKey.DETAIL_DELETE_CONFIRM to "Delete app",
+        StringKey.DETAIL_DELETE_KEEP to "Keep {name}",
+
         StringKey.INSTALLED_TITLE to "Installed apps",
         StringKey.INSTALLED_UPDATES_SECTION to "Updates ({n})",
         StringKey.INSTALLED_UP_TO_DATE_SECTION to "Up to date ({n})",

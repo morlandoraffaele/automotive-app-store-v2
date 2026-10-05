@@ -1,0 +1,10 @@
+<permissions>
+    <privapp-permissions package="com.automotive.appstore">
+        <!--Signature|Privileged permissions -->
+        <!--        https://developer.android.com/reference/android/Manifest.permission.html#REQUEST_INSTALL_PACKAGES-->
+        <!--        https://developer.android.com/reference/android/content/pm/PackageInstaller-->
+        <permission name="android.permission.DELETE_PACKAGES"/>
+        <permission name="android.permission.INSTALL_PACKAGES"/>
+        <permission name="android.permission.QUERY_ALL_PACKAGES"/>
+    </privapp-permissions>
+</permissions>

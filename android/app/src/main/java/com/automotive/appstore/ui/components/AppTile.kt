@@ -68,7 +68,7 @@ fun AppTile(
         horizontalArrangement = Arrangement.spacedBy(metrics.itemGap),
     ) {
         Box {
-            AppIconTile(icon = app.icon, color = app.iconColor)
+            AppIconTile(icon = app.icon, color = app.iconColor, iconUrl = app.iconUrl)
             StatusBadge(
                 status = state.status,
                 progress = state.progress,

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -40,10 +39,12 @@ import com.automotive.appstore.data.ThemeMode
 import com.automotive.appstore.ui.components.ProgressRing
 import com.automotive.appstore.ui.components.SkeletonBlock
 import com.automotive.appstore.ui.components.StoreIcons
+import com.automotive.appstore.ui.components.rememberTapTracker
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreType
 import com.automotive.appstore.ui.theme.storeColors
 import com.automotive.appstore.ui.theme.storeMetrics
+import com.automotive.appstore.ui.theme.screenPadding
 import com.automotive.appstore.ui.theme.translator
 import org.radioplayer.automotive.designsystem.components.primitives.Text
 import org.radioplayer.automotive.designsystem.components.primitives.icon.Icon
@@ -67,14 +68,21 @@ fun SettingsScreen(
 
     val metrics = storeMetrics
 
+    // Display, Language and Demo are developer affordances. They stay hidden until the user taps
+    // the store version row 20 times; the tracker lives in memory only, so a process restart
+    // re-hides them.
+    val advancedTracker = rememberTapTracker()
+    val advancedUnlocked = advancedTracker.unlocked
+
     LazyColumn(
+        // screenPadding, not a bare top spacer: the settings cards previously ran flush against
+        // the left and right edges while every other screen had a margin.
         modifier = modifier
             .fillMaxSize()
-            .background(storeColors.background),
+            .background(storeColors.background)
+            .screenPadding(metrics),
         verticalArrangement = Arrangement.spacedBy(metrics.sectionGap * 1.33f),
-        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        item { Spacer(Modifier.height(metrics.contentPadding)) }
         item {
             SettingsSection(title = translator.t(StringKey.SETTINGS_UPDATES)) {
                 ToggleRow(
@@ -98,47 +106,50 @@ fun SettingsScreen(
                 StoreVersionRow(
                     viewModel = viewModel,
                     onCheck = viewModel::checkForStoreUpdate,
+                    onTapVersion = advancedTracker::registerTap,
                 )
             }
         }
 
-        item {
-            SettingsSection(title = translator.t(StringKey.SETTINGS_DISPLAY)) {
-                SegmentedRow(
-                    label = translator.t(StringKey.SETTINGS_THEME),
-                    options = listOf(
-                        ThemeMode.DAY to translator.t(StringKey.SETTINGS_DAY),
-                        ThemeMode.NIGHT to translator.t(StringKey.SETTINGS_NIGHT),
-                    ),
-                    selected = settings.theme,
-                    onSelect = { viewModel.updateSettings(settings.copy(theme = it)) },
-                )
-                SettingsDivider()
-                SegmentedRow(
-                    label = translator.t(StringKey.SETTINGS_LANGUAGE),
-                    options = listOf(
-                        Locale.EN to LocalTranslator.current.displayNameFor(Locale.EN),
-                        Locale.AR to LocalTranslator.current.displayNameFor(Locale.AR),
-                    ),
-                    selected = settings.locale,
-                    onSelect = { viewModel.updateSettings(settings.copy(locale = it)) },
-                )
+        if (advancedUnlocked) {
+            item {
+                SettingsSection(title = translator.t(StringKey.SETTINGS_DISPLAY)) {
+                    SegmentedRow(
+                        label = translator.t(StringKey.SETTINGS_THEME),
+                        options = listOf(
+                            ThemeMode.DAY to translator.t(StringKey.SETTINGS_DAY),
+                            ThemeMode.NIGHT to translator.t(StringKey.SETTINGS_NIGHT),
+                        ),
+                        selected = settings.theme,
+                        onSelect = { viewModel.updateSettings(settings.copy(theme = it)) },
+                    )
+                    SettingsDivider()
+                    SegmentedRow(
+                        label = translator.t(StringKey.SETTINGS_LANGUAGE),
+                        options = listOf(
+                            Locale.EN to LocalTranslator.current.displayNameFor(Locale.EN),
+                            Locale.AR to LocalTranslator.current.displayNameFor(Locale.AR),
+                        ),
+                        selected = settings.locale,
+                        onSelect = { viewModel.updateSettings(settings.copy(locale = it)) },
+                    )
+                }
             }
-        }
 
-        item {
-            SettingsSection(title = translator.t(StringKey.SETTINGS_DEMO)) {
+            item {
+                SettingsSection(title = translator.t(StringKey.SETTINGS_DEMO)) {
                 SegmentedRow(
-                    label = translator.t(StringKey.SETTINGS_SIMULATION),
-                    options = listOf(
-                        CatalogSimulation.NORMAL to translator.t(StringKey.SETTINGS_SIM_NORMAL),
-                        CatalogSimulation.LOADING to translator.t(StringKey.SETTINGS_SIM_LOADING),
-                        CatalogSimulation.EMPTY to translator.t(StringKey.SETTINGS_SIM_EMPTY),
-                        CatalogSimulation.ERROR to translator.t(StringKey.SETTINGS_SIM_ERROR),
-                    ),
-                    selected = settings.simulation,
-                    onSelect = { viewModel.updateSettings(settings.copy(simulation = it)) },
-                )
+                        label = translator.t(StringKey.SETTINGS_SIMULATION),
+                        options = listOf(
+                            CatalogSimulation.NORMAL to translator.t(StringKey.SETTINGS_SIM_NORMAL),
+                            CatalogSimulation.LOADING to translator.t(StringKey.SETTINGS_SIM_LOADING),
+                            CatalogSimulation.EMPTY to translator.t(StringKey.SETTINGS_SIM_EMPTY),
+                            CatalogSimulation.ERROR to translator.t(StringKey.SETTINGS_SIM_ERROR),
+                        ),
+                        selected = settings.simulation,
+                        onSelect = { viewModel.updateSettings(settings.copy(simulation = it)) },
+                    )
+                }
             }
         }
     }
@@ -247,7 +258,11 @@ private fun StoreSwitch(checked: Boolean) {
 
 /** The store version readout plus the "check for update" action. */
 @Composable
-private fun StoreVersionRow(viewModel: StoreViewModel, onCheck: () -> Unit) {
+private fun StoreVersionRow(
+    viewModel: StoreViewModel,
+    onCheck: () -> Unit,
+    onTapVersion: () -> Unit,
+) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val storeUpdate = snapshot.storeUpdate
     val busy = storeUpdate.phase == com.automotive.appstore.data.StoreUpdatePhase.CHECKING ||
@@ -302,9 +317,16 @@ private fun StoreVersionRow(viewModel: StoreViewModel, onCheck: () -> Unit) {
                 maxLines = 2,
             )
         }
+        // The version readout is the advanced-settings gesture target. Clickable but without a
+        // ripple or role: it must not look interactive, or the hidden gesture becomes discoverable.
         Text(
             text = storeUpdate.currentVersion,
             // Web `font-mono text-xl tabular-nums`.
+            modifier = Modifier.clickable(
+                interactionSource = null,
+                indication = null,
+                onClick = onTapVersion,
+            ),
             style = StoreType.xl.copy(fontFamily = FontFamily.Monospace),
             color = storeColors.foreground,
             maxLines = 1,

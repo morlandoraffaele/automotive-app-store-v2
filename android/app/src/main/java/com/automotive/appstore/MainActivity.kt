@@ -1,16 +1,16 @@
 package com.automotive.appstore
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,10 +25,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.automotive.appstore.data.AppListing
 import com.automotive.appstore.data.StringKey
-import com.automotive.appstore.data.ThemeMode
 import com.automotive.appstore.data.getActiveTaskCount
 import com.automotive.appstore.data.getUpdatableAppIds
 import com.automotive.appstore.navigation.Routes
+import com.automotive.appstore.navigation.StoreDeepLink
 import com.automotive.appstore.navigation.StoreDestination
 import com.automotive.appstore.navigation.StoreNavigator
 import com.automotive.appstore.navigation.rememberStoreNavigator
@@ -42,6 +42,7 @@ import com.automotive.appstore.ui.screens.InstalledScreen
 import com.automotive.appstore.ui.screens.SettingsScreen
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreTheme
+import com.automotive.appstore.ui.theme.rememberStableWindowSizeClass
 import com.automotive.appstore.ui.theme.storeColors
 import com.automotive.appstore.ui.theme.translator
 
@@ -53,16 +54,50 @@ import com.automotive.appstore.ui.theme.translator
  * screen the navigator points at.
  */
 class MainActivity : ComponentActivity() {
+
+    /**
+     * The store ViewModel, resolved through the activity's provider.
+     *
+     * This is the very same instance the composable below gets from `viewModel()`, because that
+     * helper is scoped to the activity's `ViewModelStore`. Holding it here is what lets
+     * [onResume] reconcile installs without any UI file having to change.
+     */
+    private val storeViewModel: StoreViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            // Recomputed on every configuration change, so resizing a multi-display window
-            // re-resolves the metrics without recreating the activity.
-            @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
-            val windowSizeClass = calculateWindowSizeClass(this)
-            StoreApp(windowSizeClass = windowSizeClass)
+            // Resolved through our own helper rather than the library's
+            // `calculateWindowSizeClass`: that one feeds raw window bounds into the breakpoints,
+            // so the keyboard opening re-derived the size class from a shrunken height and
+            // collapsed the whole shell into its short-window layout. This one is IME-aware.
+            val windowSizeClass = rememberStableWindowSizeClass(this)
+            StoreApp(windowSizeClass = windowSizeClass, viewModel = storeViewModel)
         }
+        // The navigator is only listening once the composition above has run, so a cold-start
+        // deep link is re-delivered from onResume.
+        deepLinkHandled = false
+    }
+
+    private var deepLinkHandled = false
+
+    override fun onResume() {
+        super.onResume()
+
+        // Returning from the installer's confirmation dialog is the moment the install result is
+        // known; the reference app re-derives its state here for the same reason.
+        storeViewModel.onAppResumed()
+
+        if (deepLinkHandled) return
+        deepLinkHandled = true
+        StoreDeepLink.handleDeepLink(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        StoreDeepLink.handleDeepLink(intent)
     }
 }
 
@@ -101,19 +136,7 @@ fun StoreApp(
                 NavRail(
                     selected = Routes.selected(destination),
                     updateCount = updateCount,
-                    themeMode = settings.theme,
                     onSelect = navigator::select,
-                    onToggleTheme = {
-                        viewModel.updateSettings(
-                            settings.copy(
-                                theme = if (settings.theme == ThemeMode.NIGHT) {
-                                    ThemeMode.DAY
-                                } else {
-                                    ThemeMode.NIGHT
-                                }
-                            )
-                        )
-                    },
                 )
 
                 Column(

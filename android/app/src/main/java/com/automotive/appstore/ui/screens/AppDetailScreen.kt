@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -51,12 +52,16 @@ import com.automotive.appstore.ui.components.StatusChip
 import com.automotive.appstore.ui.components.StatusProgressBar
 import com.automotive.appstore.ui.components.StoreIcons
 import com.automotive.appstore.ui.components.TouchButton
+import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.components.statusLabelFor
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreType
+import com.automotive.appstore.ui.theme.screenPadding
 import com.automotive.appstore.ui.theme.storeColors
 import com.automotive.appstore.ui.theme.storeMetrics
 import com.automotive.appstore.ui.theme.translator
+import org.radioplayer.automotive.designsystem.components.composites.dialog.AutomotiveDialogColors
+import org.radioplayer.automotive.designsystem.components.composites.dialog.AutomotiveDialogWithTitle
 import org.radioplayer.automotive.designsystem.components.primitives.Text
 import org.radioplayer.automotive.designsystem.components.primitives.icon.Icon
 import org.radioplayer.automotive.designsystem.components.primitives.icon.IconSource
@@ -115,7 +120,7 @@ fun AppDetailScreen(
         modifier = modifier
             .fillMaxSize()
             .background(storeColors.background)
-            .padding(metrics.contentPadding),
+            .screenPadding(metrics),
         verticalArrangement = Arrangement.spacedBy(metrics.sectionGap),
     ) {
         item {
@@ -138,6 +143,14 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
     val displayVersion = state.currentVersion ?: state.release?.version.orEmpty()
     val showTarget = state.status == AppStatus.UPDATE_AVAILABLE || state.status == AppStatus.DOWNLOADING
 
+    // Delete only makes sense for an app that is actually on the device, and never while a task is
+    // running against it: removing a package mid-install would leave a task polling a dead app.
+    val installed = state.status == AppStatus.INSTALLED ||
+        state.status == AppStatus.UP_TO_DATE ||
+        state.status == AppStatus.UPDATE_AVAILABLE ||
+        state.status == AppStatus.FAILED
+    var confirmingDelete by remember(app.id) { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -147,7 +160,7 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        AppIconTile(icon = app.icon, color = app.iconColor, size = AppIconSize.XL)
+        AppIconTile(icon = app.icon, color = app.iconColor, size = AppIconSize.XL, iconUrl = app.iconUrl)
 
         Column(
             modifier = Modifier.weight(1f),
@@ -212,16 +225,94 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
             StatusProgressBar(status = state.status, progress = state.progress)
         }
 
-        AppActionButton(
-            appId = app.id,
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            AppActionButton(
+                appId = app.id,
+                appName = app.name,
+                state = state,
+                onInstall = viewModel::install,
+                onUpdate = viewModel::update,
+                onCancel = viewModel::cancel,
+                onRetry = viewModel::retry,
+                onOpen = viewModel::launch,
+            )
+
+            // Removal is destructive, so it sits below the primary action as a quiet outline
+            // button rather than competing with it, and is confirmed before it runs.
+            if (installed) {
+                val deleteLabel = translator.t(StringKey.ACTION_DELETE)
+                TouchButton(
+                    label = deleteLabel,
+                    onClick = { confirmingDelete = true },
+                    icon = StoreIcons.Delete,
+                    variant = TouchVariant.OUTLINE,
+                    modifier = Modifier.semantics {
+                        contentDescription = "$deleteLabel ${app.name}"
+                    },
+                )
+            }
+        }
+    }
+
+    if (confirmingDelete) {
+        DeleteConfirmDialog(
             appName = app.name,
-            state = state,
-            onInstall = viewModel::install,
-            onUpdate = viewModel::update,
-            onCancel = viewModel::cancel,
-            onRetry = viewModel::retry,
+            onConfirm = {
+                confirmingDelete = false
+                viewModel.uninstall(app.id)
+            },
+            onDismiss = { confirmingDelete = false },
         )
     }
+}
+
+/**
+ * Asks before removing an app.
+ *
+ * Removing an app is destructive and not undoable from the store's own UI — the app has to be
+ * downloaded again — so it is confirmed here, mirroring the channel switch's confirmation strip
+ * in `ChannelsScreen`.
+ */
+@Composable
+private fun DeleteConfirmDialog(
+    appName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AutomotiveDialogWithTitle(
+        onDismissRequest = onDismiss,
+        title = translator.t(StringKey.DETAIL_DELETE_CONFIRM_TITLE, "name" to appName),
+        content = translator.t(StringKey.DETAIL_DELETE_CONFIRM_BODY, "name" to appName),
+        // The design system's dialog container/content roles come from the neutral ramp, so they
+        // are overridden with the store's own card/foreground roles to keep this legible in both
+        // themes — the same reason TouchButton passes its variants explicitly.
+        colors = AutomotiveDialogColors(
+            container = storeColors.card,
+            title = storeColors.foreground,
+            content = storeColors.mutedForeground,
+            shadow = Color.Black.copy(alpha = 0.4f),
+        ),
+        // `actions` is declared before `colors`, so it is passed by name: a trailing lambda here
+        // would bind to `colors` instead.
+        actions = {
+            TouchButton(
+                label = translator.t(StringKey.DETAIL_DELETE_KEEP, "name" to appName),
+                onClick = onDismiss,
+                variant = TouchVariant.OUTLINE,
+                modifier = Modifier.weight(1f),
+            )
+            TouchButton(
+                label = translator.t(StringKey.DETAIL_DELETE_CONFIRM),
+                onClick = onConfirm,
+                icon = StoreIcons.Delete,
+                variant = TouchVariant.DESTRUCTIVE,
+                modifier = Modifier.weight(1f),
+            )
+        },
+    )
 }
 
 /** A `label: value` pair from the detail header's definition list. */

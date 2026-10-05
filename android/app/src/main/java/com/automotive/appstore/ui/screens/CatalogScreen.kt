@@ -24,12 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.automotive.appstore.StoreViewModel
+import androidx.compose.runtime.LaunchedEffect
 import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppTile
+import com.automotive.appstore.ui.components.CATEGORY_ORDER
 import com.automotive.appstore.ui.components.CategoryFilterRow
 import com.automotive.appstore.ui.components.categoryLabelKey
 import com.automotive.appstore.ui.components.SearchBar
@@ -40,10 +42,24 @@ import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.theme.translator
 import com.automotive.appstore.ui.theme.StoreType
+import com.automotive.appstore.ui.theme.screenPadding
 import com.automotive.appstore.ui.theme.storeColors
 import com.automotive.appstore.ui.theme.storeMetrics
 import org.radioplayer.automotive.designsystem.components.primitives.Text
 import org.radioplayer.automotive.designsystem.theme.AutomotiveTheme
+
+/**
+ * Whether the catalog renders the search field.
+ *
+ * Temporarily off. Opening the soft keyboard re-derived the window size class from the
+ * keyboard-shrunk bounds, which dropped the height class to Compact and collapsed the whole
+ * shell (rail labels, top-bar clock, search hint, type scale). `rememberStableWindowSizeClass`
+ * now corrects the bounds, but the field stays hidden until that is verified on a real head unit.
+ *
+ * Flipping this back to `true` restores the search with no other change: the `query` state, the
+ * text filter, the "no match" state and its "Show all" action are all still wired up below.
+ */
+private const val SHOW_SEARCH_BAR = false
 
 /**
  * The store catalog. Port of the web `CatalogScreen`.
@@ -75,20 +91,45 @@ fun CatalogScreen(
 
     val metrics = storeMetrics
 
+    // Only offer categories the catalogue actually has apps in. The endpoint has no category
+    // field — CatalogMapper derives one by keyword — so most of the web build's six categories are
+    // empty for a media-focused catalogue, and a filter chip that leads to an empty grid is a dead
+    // end. `All` is always kept.
+    val availableCategories = remember(catalog.apps) {
+        val present = catalog.apps.map { it.category }.toSet()
+        CATEGORY_ORDER.filter { it in present }
+    }
+
+    // A category can vanish when the catalogue reloads (or a search narrows nothing). Drop a
+    // selection that no longer exists rather than leaving the grid filtered to nothing.
+    LaunchedEffect(availableCategories, category) {
+        if (category != null && category !in availableCategories) category = null
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(storeColors.background)
-            .padding(metrics.contentPadding),
+            .screenPadding(metrics),
         verticalArrangement = Arrangement.spacedBy(metrics.sectionGap),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(metrics.itemGap)) {
-            SearchBar(
-                query = query,
-                onQueryChange = { query = it },
-            )
-            Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                CategoryFilterRow(selected = category, onSelect = { category = it })
+            if (SHOW_SEARCH_BAR) {
+                SearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                )
+            }
+            // Hidden entirely when the catalogue yields a single category: one chip and "All" add
+            // nothing, and the row would only take vertical space.
+            if (availableCategories.size > 1) {
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    CategoryFilterRow(
+                        selected = category,
+                        onSelect = { category = it },
+                        categories = availableCategories,
+                    )
+                }
             }
         }
 

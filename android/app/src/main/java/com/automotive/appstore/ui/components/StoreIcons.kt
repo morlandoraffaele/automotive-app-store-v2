@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DriveEta
 import androidx.compose.material.icons.filled.Error
@@ -96,6 +97,7 @@ object StoreIcons {
     val Drive: ImageVector = Icons.Filled.DriveEta
     val More: ImageVector = Icons.Filled.MoreVert
     val Sparkle: ImageVector = Icons.Filled.AutoAwesome
+    val Delete: ImageVector = Icons.Filled.Delete
 
     /** Glyph for an app tile, keyed by [AppIconName]. */
     fun forApp(name: AppIconName): ImageVector = when (name) {

@@ -1,6 +1,7 @@
 package com.automotive.appstore.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.Saver
@@ -52,10 +53,21 @@ class StoreNavigator(initial: StoreDestination = StoreDestination.Store) {
  * Remembers a [StoreNavigator] whose back stack survives configuration changes and process
  * death — on the web the URL is the source of truth for the current route, and this is the
  * closest equivalent.
+ *
+ * It also applies any deep link delivered through [StoreDeepLink], which is how a
+ * `com.automotive.appstore://store/app?packageName=…` intent reaches the right screen. The
+ * reference app relies on `NavController.handleDeepLink` for this; here the navigator performs
+ * the equivalent push.
  */
 @Composable
-fun rememberStoreNavigator(): StoreNavigator =
-    rememberSaveable(saver = StoreNavigatorSaver) { StoreNavigator() }
+fun rememberStoreNavigator(): StoreNavigator {
+    val navigator = rememberSaveable(saver = StoreNavigatorSaver) { StoreNavigator() }
+    DisposableEffect(navigator) {
+        val remove = StoreDeepLink.addListener { destination -> navigator.push(destination) }
+        onDispose { remove() }
+    }
+    return navigator
+}
 
 /** Serialises a navigator's back stack to a flat list of route keys. */
 private val StoreNavigatorSaver: Saver<StoreNavigator, List<String>> = Saver(

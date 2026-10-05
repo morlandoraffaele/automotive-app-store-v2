@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ported 1:1 from radioplayer-automotive-appstore/app/src/main/res/xml/file_paths.xml.
+  The installer reads the staged APK from the app's own external-files dir.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path
+        name="apk"
+        path="." />
+</paths>

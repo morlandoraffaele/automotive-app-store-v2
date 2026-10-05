@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.StringKey
@@ -31,7 +30,6 @@ import kotlinx.coroutines.delay
 import org.radioplayer.automotive.designsystem.components.primitives.Text
 import org.radioplayer.automotive.designsystem.components.composites.search.SearchInputField
 import org.radioplayer.automotive.designsystem.components.composites.search.rememberSearchInputFieldState
-import org.radioplayer.automotive.designsystem.theme.AutomotiveTheme
 
 /** Sample transcripts the simulated voice recogniser "hears", cycling on each press. */
 private val VOICE_SAMPLES = listOf("charging", "music", "weather", "parking")
@@ -76,34 +74,18 @@ fun SearchBar(
     }
 
     val metrics = storeMetrics
-    val showHint = metrics.searchShowsHint && state.query.isEmpty() && !listening
 
-    Row(
+    // The voice hint now lives *inside* the field as its placeholder rather than sitting beside it.
+    // As a sibling Text it competed with the field for width, could wrap, and read as a separate,
+    // unpressable label. Inside, it is tied to the thing it advertises and disappears as soon as
+    // there is a query — which is what the hint always wanted to do.
+    SearchInputField(
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(metrics.itemGap),
-    ) {
-        SearchInputField(
-            modifier = Modifier.weight(1f),
-            state = state,
-            hintText = hintLabel,
-            onQueryChange = onQueryChange,
-            onVoiceSearchClick = { listening = !listening },
-        )
-        if (showHint) {
-            Text(
-                text = hintText,
-                // The hint is supporting copy, not a control: it must never push the field
-                // or wrap onto a second line.
-                modifier = Modifier.weight(1f, fill = true),
-                // Web `text-lg` = 20.25px; `body3` is 24sp.
-                style = StoreType.lg,
-                color = storeColors.mutedForeground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+        state = state,
+        hintText = if (state.query.isEmpty()) hintText else hintLabel,
+        onQueryChange = onQueryChange,
+        onVoiceSearchClick = { listening = !listening },
+    )
 }
 
 /**

@@ -23,6 +23,9 @@ import kotlinx.coroutines.delay
  * Which button appears is driven entirely by [AppState.status], exactly as on the web:
  * not installed → Install, update available → Update, downloading → Cancel,
  * installing → disabled spinner, failed → Retry, otherwise → Open.
+ *
+ * [onOpen] is invoked for the installed states. It returns whether the app actually started, so the
+ * "Opening…" state only shows when there is something to open.
  */
 @Composable
 fun AppActionButton(
@@ -34,9 +37,11 @@ fun AppActionButton(
     onCancel: (String) -> Unit,
     onRetry: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onOpen: (String) -> Boolean = { false },
 ) {
 
-    // "Open" briefly shows a confirming state, as the web button does with `opening`.
+    // "Open" briefly shows a confirming state, as the web button does with `opening`. Only entered
+    // when the launch really happened, so a headless app that cannot be opened does not lie.
     var opening by remember(appId) { mutableStateOf(false) }
     LaunchedEffect(opening) {
         if (opening) {
@@ -71,7 +76,7 @@ fun AppActionButton(
             StoreIcons.Open,
             TouchVariant.SECONDARY,
             true,
-        ) { opening = true }
+        ) { opening = onOpen(appId) }
     }
 
     val actionLabel = translator.t(labelKey)

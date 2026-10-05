@@ -71,6 +71,12 @@ object StringsAr {
         StringKey.ACTION_OPENING to "جارٍ الفتح…",
         StringKey.ACTION_CANCEL to "إلغاء",
         StringKey.ACTION_RETRY to "إعادة المحاولة",
+        StringKey.ACTION_DELETE to "حذف",
+        StringKey.DETAIL_DELETE_CONFIRM_TITLE to "هل تريد حذف {name}؟",
+        StringKey.DETAIL_DELETE_CONFIRM_BODY to "سيتم حذف {name} من هذا الجهاز. " +
+            "يمكنك تثبيته مرة أخرى من المتجر في أي وقت.",
+        StringKey.DETAIL_DELETE_CONFIRM to "حذف التطبيق",
+        StringKey.DETAIL_DELETE_KEEP to "الإبقاء على {name}",
         StringKey.ACTION_INSTALLING to "جارٍ التثبيت…",
         StringKey.INSTALLED_TITLE to "التطبيقات المثبتة",
         StringKey.INSTALLED_UPDATES_SECTION to "تحديثات ({n})",
