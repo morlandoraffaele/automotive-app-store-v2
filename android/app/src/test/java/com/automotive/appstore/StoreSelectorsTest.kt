@@ -52,14 +52,18 @@ class StoreSelectorsTest {
     )
 
     @Test
-    fun `defaults to the stable channel`() {
-        assertEquals(DEFAULT_CHANNEL_ID, getSelectedChannelId(snapshot(), "waypoint"))
+    fun `defaults to the published channel`() {
+        // waypoint lists stable first, so its published channel is stable.
+        assertEquals(DEFAULT_CHANNEL_ID, getSelectedChannelId(snapshot(), app))
+        val demo = app.copy(releases = app.releases.map { it.copy(channelId = "demo") })
+        assertEquals("demo", getSelectedChannelId(snapshot(), demo))
+        assertEquals("demo", getAppState(snapshot(), demo).channel?.id)
     }
 
     @Test
     fun `honours an explicit channel selection`() {
         val s = snapshot(selectedChannel = mapOf("waypoint" to "beta"))
-        assertEquals("beta", getSelectedChannelId(s, "waypoint"))
+        assertEquals("beta", getSelectedChannelId(s, app))
     }
 
     @Test

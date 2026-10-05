@@ -212,8 +212,8 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
                         tint = storeColors.success,
                     )
                 }
-                // Falls back to the release's own channel id, which is what the catalogue published
-                // even when no matching ChannelDefinition exists.
+                // `state.channel` defaults to the published channel; the raw id covers a channel
+                // the catalogue published without a matching ChannelDefinition.
                 val channelLabel = state.channel?.name
                     ?: listingChannelId(app)
                 if (channelLabel != null) {

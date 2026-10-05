@@ -10,14 +10,23 @@ data class AppState(
     val release: ChannelRelease?,
 )
 
-fun getSelectedChannelId(snapshot: StoreSnapshot, appId: String): ChannelId =
-    snapshot.selectedChannel[appId] ?: DEFAULT_CHANNEL_ID
+/**
+ * The channel an app is on: the user's explicit choice, else the channel the catalogue published
+ * it on. Defaulting straight to `stable` made every config-published `demo`/`alpha` entry report
+ * itself as stable.
+ */
+fun getSelectedChannelId(snapshot: StoreSnapshot, app: AppListing): ChannelId =
+    snapshot.selectedChannel[app.id] ?: getPublishedChannelId(app)
+
+/** The channel the catalogue published this entry on; `stable` only if it has no release. */
+fun getPublishedChannelId(app: AppListing): ChannelId =
+    app.releases.firstOrNull()?.channelId ?: DEFAULT_CHANNEL_ID
 
 fun getReleaseForChannel(app: AppListing, channelId: ChannelId): ChannelRelease? =
     app.releases.firstOrNull { it.channelId == channelId } ?: app.releases.firstOrNull()
 
 fun getAppState(snapshot: StoreSnapshot, app: AppListing): AppState {
-    val channelId = getSelectedChannelId(snapshot, app.id)
+    val channelId = getSelectedChannelId(snapshot, app)
     val channel = snapshot.channels.firstOrNull { it.id == channelId }
     val release = getReleaseForChannel(app, channelId)
     val installed = snapshot.installed[app.id]
