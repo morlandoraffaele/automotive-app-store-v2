@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.CategoryId
+import com.automotive.appstore.data.STORE_APP_PACKAGE
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppTile
@@ -79,9 +80,18 @@ fun CatalogScreen(
     var query by remember { mutableStateOf("") }
 
     val catalog = snapshot.catalog
-    val visible = remember(catalog.apps, category, query) {
+
+    // The remote catalogue publishes the store itself so head units can update it through the
+    // normal install flow. It is not browsable: listing it would invite the user to install the
+    // app they are already running. Everything below — the grid, the empty state and the category
+    // chips — works off this filtered list rather than `catalog.apps` directly.
+    val browsable = remember(catalog.apps) {
+        catalog.apps.filterNot { it.packageName == STORE_APP_PACKAGE }
+    }
+
+    val visible = remember(browsable, category, query) {
         val needle = query.trim().lowercase()
-        catalog.apps.filter { app ->
+        browsable.filter { app ->
             if (category != null && app.category != category) return@filter false
             if (needle.isEmpty()) return@filter true
             listOf(app.name, app.tagline, app.developer, app.description)
@@ -95,8 +105,8 @@ fun CatalogScreen(
     // field — CatalogMapper derives one by keyword — so most of the web build's six categories are
     // empty for a media-focused catalogue, and a filter chip that leads to an empty grid is a dead
     // end. `All` is always kept.
-    val availableCategories = remember(catalog.apps) {
-        val present = catalog.apps.map { it.category }.toSet()
+    val availableCategories = remember(browsable) {
+        val present = browsable.map { it.category }.toSet()
         CATEGORY_ORDER.filter { it in present }
     }
 
@@ -149,7 +159,7 @@ fun CatalogScreen(
                 },
             )
 
-            catalog.apps.isEmpty() -> StateMessage(
+            browsable.isEmpty() -> StateMessage(
                 icon = StoreIcons.NoApps,
                 title = translator.t(StringKey.CATALOG_EMPTY_TITLE),
                 body = translator.t(StringKey.CATALOG_EMPTY_BODY),

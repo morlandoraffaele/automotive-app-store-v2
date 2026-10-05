@@ -16,6 +16,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.automotive.appstore.data.local.AppLocalDataStore
+import com.automotive.appstore.data.remote.App
 import com.automotive.appstore.data.remote.RetrofitClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -238,6 +239,9 @@ class StoreRepository(
                     set { it.copy(catalog = Catalog(CatalogStatus.READY, CatalogMapper.toListings(apps))) }
                     refreshInstalled()
                     resumePendingDownloads()
+                    // The catalogue response already carries the store's own entry, so the
+                    // startup self-update check reuses it rather than making a second request.
+                    resolveStoreUpdate(apps)?.let(::setStoreUpdate)
                 },
                 onFailure = { e ->
                     Log.e(TAG, "Error while loading: ${e.message}", e)
@@ -475,8 +479,27 @@ class StoreRepository(
         }
     }
 
-    fun updateAll() {
-        getUpdatableAppIds(_snapshot.value).forEach { startTask(it, TaskKind.UPDATE) }
+    /**
+     * Updates the store itself, by running its own catalogue entry through the normal install flow.
+     *
+     * `config.json` publishes the store under [STORE_APP_PACKAGE] so that a head unit can replace
+     * it, which means the machinery is already here: the same download, the same `PackageInstaller`
+     * session and the same result handling as any other app. Only the entry point differs — this is
+     * the one install that replaces the process performing it, so `PackageInstaller` will kill the
+     * app once the session commits.
+     *
+     * This is deliberately not a bulk operation: the store is filtered out of the browsable
+     * catalogue and out of `getUpdatableAppIds`, so it can only be updated from here, one
+     * deliberate tap at a time.
+     */
+    fun updateStore() {
+        val store = _snapshot.value.catalog.apps
+            .firstOrNull { it.packageName == STORE_APP_PACKAGE }
+        if (store == null) {
+            Log.w(TAG, "Catalogue does not publish $STORE_APP_PACKAGE; cannot self-update")
+            return
+        }
+        startTask(store.id, TaskKind.UPDATE)
     }
 
     /** Cancels the download the way the reference app does: drop the id and forget the task. */
@@ -519,15 +542,10 @@ class StoreRepository(
         DEFAULT_STORE_VERSION
     }
 
-    fun dismissStoreBanner() {
-        set { it.copy(storeUpdate = it.storeUpdate.copy(bannerDismissed = true)) }
-    }
-
     /**
      * The store does not publish a self-update feed, so the reference app has no equivalent of
-     * this check. It keeps the mock's contract — compare the running `versionName` against the
-     * build published for this package — and simply reports the outcome without simulating a
-     * download that no endpoint backs.
+     * this check. It reads the store's own entry out of `config.json` — the same document the
+     * catalogue comes from — and compares its published `version` against the running `versionCode`.
      */
     fun checkForStoreUpdate() {
         val phase = _snapshot.value.storeUpdate.phase
@@ -536,22 +554,95 @@ class StoreRepository(
         set { it.copy(storeUpdate = it.storeUpdate.copy(phase = StoreUpdatePhase.CHECKING)) }
 
         jobs[STORE_JOB] = scope.launch {
-            val current = _snapshot.value.storeUpdate
-            set {
-                it.copy(
-                    storeUpdate = it.storeUpdate.copy(
-                        availableVersion = current.availableVersion,
-                        phase = if (current.availableVersion != null) {
-                            StoreUpdatePhase.READY
-                        } else {
-                            StoreUpdatePhase.UP_TO_DATE
-                        },
-                        bannerDismissed = false,
+            // A user explicitly asked to re-check, so bypass any intermediary cache.
+            val resolved = fetchAndResolveStoreUpdate(fresh = true)
+            if (resolved != null) {
+                setStoreUpdate(resolved)
+            } else {
+                // The check could not be made. Leave any already-known update in place rather than
+                // clearing a badge we have no new information about, but drop out of CHECKING so
+                // the Settings row does not spin forever.
+                set { current ->
+                    val previous = current.storeUpdate
+                    current.copy(
+                        storeUpdate = previous.copy(
+                            phase = if (previous.availableVersion != null) {
+                                StoreUpdatePhase.READY
+                            } else {
+                                StoreUpdatePhase.UP_TO_DATE
+                            },
+                        )
                     )
-                )
+                }
             }
         }
     }
+
+    /**
+     * Fetches the catalogue and works out whether the store itself is out of date.
+     *
+     * @param fresh bypass any intermediary cache; set when the user asked for the re-check.
+     * @return the self-update state to publish, or `null` when the check could not be made — in
+     *   which case the caller should leave the current state alone rather than clearing a badge it
+     *   has no new information about.
+     */
+    private suspend fun fetchAndResolveStoreUpdate(fresh: Boolean): StoreSelfUpdate? {
+        val apps = api.getAppList(fresh = fresh).getOrElse { e ->
+            Log.w(TAG, "Store update check failed: ${e.message}")
+            return null
+        }
+        return resolveStoreUpdate(apps)
+    }
+
+    /**
+     * Works out whether the store is out of date from an already-fetched catalogue.
+     *
+     * Pure apart from the two `PackageManager` reads, so the startup path can pass the catalogue
+     * it already downloaded instead of issuing a second request, while the Settings path re-fetches
+     * and calls this with the fresh result. Both paths therefore agree by construction.
+     *
+     * @return the self-update state, or `null` when the catalogue does not publish the store.
+     */
+    private fun resolveStoreUpdate(apps: List<App>): StoreSelfUpdate? {
+        // config.json is keyed by package name; fall back to the declared field in case a key and
+        // a packageName ever disagree.
+        val entry = apps.firstOrNull { it.key == STORE_APP_PACKAGE }
+            ?: apps.firstOrNull { it.details.packageName == STORE_APP_PACKAGE }
+        if (entry == null) {
+            Log.i(TAG, "Catalogue does not publish $STORE_APP_PACKAGE; treating store as current")
+            return null
+        }
+
+        val remoteVersionCode = entry.details.remoteVersionCode
+        val installedVersionCode = currentStoreVersionCode()
+
+        // Note this deliberately does not go through `CatalogMapper.installedVersionLabel`, which
+        // rewrites the recorded version to the published placeholder whenever the device is newer.
+        // That is right for the per-app UI but would silently hide a real self-update.
+        val available = CatalogMapper.storeUpdateVersionLabel(installedVersionCode, remoteVersionCode)
+        Log.i(
+            TAG,
+            "Store update check: installed=$installedVersionCode published=$remoteVersionCode " +
+                "available=$available",
+        )
+
+        val previous = _snapshot.value.storeUpdate
+        return previous.copy(
+            currentVersion = currentStoreVersion(),
+            availableVersion = available,
+            phase = if (available != null) StoreUpdatePhase.READY else StoreUpdatePhase.UP_TO_DATE,
+            progress = 0,
+            // A newly found update always re-arms the badge, even if an earlier one was dismissed.
+            bannerDismissed = false,
+        )
+    }
+
+    private fun setStoreUpdate(update: StoreSelfUpdate) {
+        set { it.copy(storeUpdate = update) }
+    }
+
+    /** The running store's own `versionCode`, which is what `config.json`'s `version` compares to. */
+    private fun currentStoreVersionCode(): Int? = api.getInstalledVersionCode(STORE_APP_PACKAGE)
 
     /**
      * Begins an install or update: enqueue the APK download, persist its id and start polling.

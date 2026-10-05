@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,11 +30,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.automotive.appstore.StoreViewModel
+import com.automotive.appstore.data.AppStatus
 import com.automotive.appstore.data.CatalogSimulation
 import com.automotive.appstore.data.Locale
+import com.automotive.appstore.data.STORE_APP_PACKAGE
 import com.automotive.appstore.data.StoreSettings
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.ThemeMode
+import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.ProgressRing
 import com.automotive.appstore.ui.components.SkeletonBlock
 import com.automotive.appstore.ui.components.StoreIcons
@@ -43,8 +45,8 @@ import com.automotive.appstore.ui.components.rememberTapTracker
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreType
 import com.automotive.appstore.ui.theme.storeColors
-import com.automotive.appstore.ui.theme.storeMetrics
 import com.automotive.appstore.ui.theme.screenPadding
+import com.automotive.appstore.ui.theme.storeMetrics
 import com.automotive.appstore.ui.theme.translator
 import org.radioplayer.automotive.designsystem.components.primitives.Text
 import org.radioplayer.automotive.designsystem.components.primitives.icon.Icon
@@ -108,6 +110,25 @@ fun SettingsScreen(
                     onCheck = viewModel::checkForStoreUpdate,
                     onTapVersion = advancedTracker::registerTap,
                 )
+                // The install lives here rather than in the header because it replaces the running
+                // process: it needs to be a deliberate, labelled tap, not a header control a driver
+                // can hit while swiping between screens. Only shown once an update has been found.
+                val storeUpdate = snapshot.storeUpdate
+                val storeListing = snapshot.catalog.apps
+                    .firstOrNull { it.packageName == STORE_APP_PACKAGE }
+                if (storeUpdate.availableVersion != null && storeListing != null) {
+                    SettingsDivider()
+                    // Derived with the same selector every app uses, so an in-flight download, a
+                    // failure and a completed update read exactly as they do in the catalogue.
+                    // Self-update is the normal install flow run against the store's own entry.
+                    val storeState = getAppState(snapshot, storeListing)
+                    StoreUpdateAction(
+                        label = translator.t(StringKey.SETTINGS_UPDATE_STORE),
+                        status = storeState.status,
+                        progress = storeState.progress,
+                        onClick = viewModel::updateStore,
+                    )
+                }
             }
         }
 
@@ -363,6 +384,61 @@ private fun StoreVersionRow(
             style = StoreType.xlSemibold,
             color = storeColors.primary,
             maxLines = 1,
+        )
+    }
+}
+
+/**
+ * The "Update store" action row, shown once a store update has been found.
+ *
+ * Replacing the running app is the most destructive thing this UI can do, so the row mirrors the
+ * destructive treatment used elsewhere in the store (see `AppActionButton`'s FAILED branch) and is
+ * never rendered speculatively — it appears only when [status] is a state with work left to do.
+ */
+@Composable
+private fun StoreUpdateAction(
+    label: String,
+    status: AppStatus,
+    progress: Int,
+    onClick: () -> Unit,
+) {
+    val busy = status == AppStatus.DOWNLOADING || status == AppStatus.INSTALLING
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .clickable(enabled = !busy) { onClick() }
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        when {
+            status == AppStatus.DOWNLOADING -> ProgressRing(
+                progress = progress,
+                modifier = Modifier.size(32.dp),
+            )
+
+            status == AppStatus.INSTALLING ->
+                SkeletonBlock(width = 32.dp, height = 32.dp, corner = 16.dp)
+
+            else -> Icon(
+                source = IconSource.Vector(StoreIcons.UpdateAll),
+                size = AutomotiveTheme.icon.primary,
+                color = storeColors.primary,
+            )
+        }
+        Text(
+            text = if (status == AppStatus.UP_TO_DATE || status == AppStatus.INSTALLED) {
+                // The install already committed — which means this process is about to be replaced.
+                translator.t(StringKey.SETTINGS_STORE_RESTARTING)
+            } else {
+                label
+            },
+            // Web `text-xl font-semibold text-primary`.
+            style = StoreType.xlSemibold,
+            color = storeColors.primary,
+            maxLines = 2,
         )
     }
 }

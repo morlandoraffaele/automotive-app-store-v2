@@ -67,8 +67,6 @@ object StoreIcons {
     val DayMode: ImageVector = Icons.Filled.WbSunny
     val Back: ImageVector = Icons.Filled.ArrowBack
     val UpdatesAvailable: ImageVector = Icons.Filled.ArrowDownward
-    val AllUpToDate: ImageVector = Icons.Filled.CheckCircle
-    val Updating: ImageVector = Icons.Filled.Refresh
     val UpdateAll: ImageVector = Icons.Filled.ArrowDownward
     val Wifi: ImageVector = Icons.Filled.Wifi
     val Car: ImageVector = Icons.Filled.DirectionsCar

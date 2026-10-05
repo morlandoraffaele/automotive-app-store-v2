@@ -71,11 +71,30 @@ import org.radioplayer.automotive.designsystem.theme.AutomotiveTheme
 private enum class DetailTab { OVERVIEW, WHATS_NEW, CHANNELS }
 
 /**
+ * Whether the **Channels** tab is offered.
+ *
+ * Channel switching is not wired up to the remote catalogue yet, so the tab currently leads to a
+ * picker that cannot change anything meaningful. It is hidden rather than shown disabled so the
+ * remaining two tabs get the full width of the segmented control. Flip this back to `true` — along
+ * with `WHATS_NEW` returning its changelog — to restore the three-tab layout; the tab, the
+ * [ChannelsPanel] row and the [DetailTab.CHANNELS] case are all still in place below.
+ */
+private const val SHOW_CHANNELS_TAB = false
+
+/**
+ * Whether **What's new** renders the real changelog.
+ *
+ * The remote catalogue does not publish changelogs yet, so the panel would come up empty. A
+ * placeholder keeps the tab honest about being incomplete instead of showing a blank card.
+ */
+private const val SHOW_CHANGELOG = false
+
+/**
  * A single app's detail page. Port of the web `AppDetailScreen`.
  *
- * A header (icon, name, developer, version/size/channel, status, action button) sits above
- * an Overview / What's new / Channels tab bar. Selecting **Channels** reveals a row that
- * drills into the channel picker.
+ * A header (icon, name, developer, version/channel, status, action button) sits above
+ * an Overview / What's new tab bar. **What's new** is currently a "coming soon" placeholder and
+ * **Channels** is hidden — see [SHOW_CHANGELOG] and [SHOW_CHANNELS_TAB].
  */
 @Composable
 fun AppDetailScreen(
@@ -190,15 +209,6 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
                         to = if (showTarget) state.targetVersion else null,
                     )
                 }
-                MetaItem(translator.t(StringKey.DETAIL_SIZE)) {
-                    Text(
-                        text = translator.t(StringKey.DETAIL_SIZE_VALUE, "n" to app.sizeMb),
-                        // Web `text-lg` in the header `dl`.
-                        style = StoreType.lg,
-                        color = storeColors.foreground,
-                        maxLines = 1,
-                    )
-                }
                 if (state.channel != null) {
                     MetaItem(translator.t(StringKey.DETAIL_CHANNEL)) {
                         Text(
@@ -237,7 +247,6 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
                 onUpdate = viewModel::update,
                 onCancel = viewModel::cancel,
                 onRetry = viewModel::retry,
-                onOpen = viewModel::launch,
             )
 
             // Removal is destructive, so it sits below the primary action as a quiet outline
@@ -333,11 +342,11 @@ private fun MetaItem(label: String, value: @Composable () -> Unit) {
 /** The segmented tab bar, matching the web `role="tablist"` block. */
 @Composable
 private fun DetailTabs(selected: DetailTab, onSelect: (DetailTab) -> Unit) {
-    val options = listOf(
-        DetailTab.OVERVIEW to translator.t(StringKey.DETAIL_OVERVIEW),
-        DetailTab.WHATS_NEW to translator.t(StringKey.DETAIL_WHATS_NEW),
-        DetailTab.CHANNELS to translator.t(StringKey.DETAIL_CHANNELS),
-    )
+    val options = buildList {
+        add(DetailTab.OVERVIEW to translator.t(StringKey.DETAIL_OVERVIEW))
+        add(DetailTab.WHATS_NEW to translator.t(StringKey.DETAIL_WHATS_NEW))
+        if (SHOW_CHANNELS_TAB) add(DetailTab.CHANNELS to translator.t(StringKey.DETAIL_CHANNELS))
+    }
     val tabsLabel = translator.t(StringKey.DETAIL_TABS)
     Row(
         modifier = Modifier
@@ -497,6 +506,14 @@ private fun permissionLabelKey(permission: PermissionId): StringKey = when (perm
 /** The changelog for the currently selected channel. Port of the web `WhatsNewPanel`. */
 @Composable
 private fun WhatsNewPanel(state: AppState) {
+    if (!SHOW_CHANGELOG) {
+        ComingSoonPanel(
+            title = translator.t(StringKey.DETAIL_COMING_SOON_TITLE),
+            body = translator.t(StringKey.DETAIL_COMING_SOON_BODY),
+        )
+        return
+    }
+
     val release = state.release ?: return
     Column(
         modifier = Modifier
@@ -531,6 +548,39 @@ private fun WhatsNewPanel(state: AppState) {
             )
         }
         release.changelog.forEach { entry -> ChangelogRow(entry) }
+    }
+}
+
+/**
+ * Placeholder for a panel whose data is not available yet.
+ *
+ * Uses the same card, width and spacing as the other detail panels so the tab bar does not appear
+ * to select an empty region.
+ */
+@Composable
+private fun ComingSoonPanel(title: String, body: String) {
+    Column(
+        modifier = Modifier
+            .width(storeMetrics.maxReadingWidth)
+            .clip(RoundedCornerShape(storeColors.radius3Xl))
+            .background(storeColors.card)
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = title,
+            // Web `text-2xl font-bold`.
+            style = StoreType.xxlBold,
+            color = storeColors.foreground,
+            maxLines = 2,
+        )
+        Text(
+            text = body,
+            // Web `text-xl text-muted-foreground`.
+            style = StoreType.xl,
+            color = storeColors.mutedForeground,
+            maxLines = 3,
+        )
     }
 }
 

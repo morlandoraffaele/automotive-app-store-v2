@@ -46,7 +46,8 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun uninstall(appId: String): Boolean = repository.uninstall(appId)
 
-    fun updateAll() = repository.updateAll()
+    /** Updates the store itself; see `StoreRepository.updateStore`. */
+    fun updateStore() = repository.updateStore()
 
     fun cancel(appId: String) = repository.cancel(appId)
 
@@ -64,8 +65,6 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
      * block; it lives here so no UI file has to change.
      */
     fun onAppResumed() = repository.onAppResumed()
-
-    fun dismissStoreBanner() = repository.dismissStoreBanner()
 
     fun updateSettings(settings: StoreSettings) = repository.updateSettings(settings)
 }

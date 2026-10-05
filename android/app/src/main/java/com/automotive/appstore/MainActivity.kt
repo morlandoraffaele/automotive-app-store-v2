@@ -25,7 +25,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.automotive.appstore.data.AppListing
 import com.automotive.appstore.data.StringKey
-import com.automotive.appstore.data.getActiveTaskCount
 import com.automotive.appstore.data.getUpdatableAppIds
 import com.automotive.appstore.navigation.Routes
 import com.automotive.appstore.navigation.StoreDeepLink
@@ -33,7 +32,6 @@ import com.automotive.appstore.navigation.StoreDestination
 import com.automotive.appstore.navigation.StoreNavigator
 import com.automotive.appstore.navigation.rememberStoreNavigator
 import com.automotive.appstore.ui.components.NavRail
-import com.automotive.appstore.ui.components.StoreUpdateBanner
 import com.automotive.appstore.ui.components.TopBar
 import com.automotive.appstore.ui.screens.AppDetailScreen
 import com.automotive.appstore.ui.screens.CatalogScreen
@@ -147,18 +145,14 @@ fun StoreApp(
                 ) {
                     TopBar(
                         title = titleFor(destination, snapshot.catalog.apps),
-                        updateCount = updateCount,
-                        activeTaskCount = getActiveTaskCount(snapshot),
+                        // The store's own update is the only one reachable from the header now;
+                        // per-app updates live on the Installed screen, behind the nav badge.
+                        storeUpdateAvailable = snapshot.storeUpdate.availableVersion != null,
                         locale = settings.locale,
                         onBack = Routes.backTarget(destination)?.let { target ->
                             { navigator.select(target) }
                         },
-                        onUpdateAll = viewModel::updateAll,
-                        onOpenInstalled = { navigator.select(StoreDestination.Installed) },
-                    )
-                    StoreUpdateBanner(
-                        storeUpdate = snapshot.storeUpdate,
-                        onDismiss = viewModel::dismissStoreBanner,
+                        onOpenSettings = { navigator.select(StoreDestination.Settings) },
                     )
                     ScreenHost(
                         destination = destination,

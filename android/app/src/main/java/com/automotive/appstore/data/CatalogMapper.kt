@@ -57,6 +57,22 @@ object CatalogMapper {
     fun isUpToDate(installedVersionCode: Int, remoteVersionCode: Int): Boolean =
         installedVersionCode >= remoteVersionCode
 
+    /**
+     * The version a store update would bring, or `null` when the running store is already current.
+     *
+     * Used for the store's own self-update, where the question is simply "is the build published
+     * for this package newer than the one running?". Unlike [installedVersionLabel] this does not
+     * rewrite anything towards the published value — a device running something *newer* than the
+     * catalogue advertises is current, not out of date — and an unreadable installed `versionCode`
+     * is treated as "unknown", which suppresses the badge rather than guessing.
+     */
+    fun storeUpdateVersionLabel(installedVersionCode: Int?, remoteVersionCode: Int): String? =
+        if (installedVersionCode != null && remoteVersionCode > installedVersionCode) {
+            versionLabel(remoteVersionCode)
+        } else {
+            null
+        }
+
     /** Maps one remote entry onto an [AppListing]. */
     fun toListing(app: App): AppListing {
         val details = app.details

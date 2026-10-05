@@ -130,6 +130,44 @@ class StoreSelectorsTest {
     }
 
     @Test
+    fun `a stale failure does not mask a satisfied install`() {
+        // Regression: a task left in FAILED used to win over the installed record, so a correctly
+        // installed app showed a Retry button with nothing to retry.
+        val s = snapshot(
+            installed = mapOf("waypoint" to InstalledRecord("5.2.0")),
+            tasks = mapOf(
+                "waypoint" to InstallTask(TaskKind.INSTALL, TaskPhase.FAILED, 55, "5.2.0")
+            ),
+        )
+        val state = getAppState(s, app)
+        assertEquals(AppStatus.UP_TO_DATE, state.status)
+        assertEquals(100, state.progress)
+        assertNull(state.targetVersion)
+    }
+
+    @Test
+    fun `a failure on an app that is genuinely behind still reports failed`() {
+        // The other half of the guard: a failed *update* of an older build must stay retryable.
+        val s = snapshot(
+            installed = mapOf("waypoint" to InstalledRecord("5.1.3")),
+            tasks = mapOf(
+                "waypoint" to InstallTask(TaskKind.UPDATE, TaskPhase.FAILED, 55, "5.2.0")
+            ),
+        )
+        assertEquals(AppStatus.FAILED, getAppState(s, app).status)
+    }
+
+    @Test
+    fun `a stale failure on an uninstalled app still reports failed`() {
+        val s = snapshot(
+            tasks = mapOf(
+                "waypoint" to InstallTask(TaskKind.INSTALL, TaskPhase.FAILED, 55, "5.2.0")
+            ),
+        )
+        assertEquals(AppStatus.FAILED, getAppState(s, app).status)
+    }
+
+    @Test
     fun `updatable ids include updates and failures but not in-flight work`() {
         val s = snapshot(
             installed = mapOf("waypoint" to InstalledRecord("5.1.3")),

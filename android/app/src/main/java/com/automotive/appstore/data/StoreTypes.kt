@@ -63,6 +63,17 @@ data class ChannelRelease(
     val changelog: List<String>,
 )
 
+/**
+ * This app's own `applicationId`.
+ *
+ * The store publishes itself in the remote catalogue so that head units can update it through the
+ * normal install flow (see [StoreSelfUpdate]), which means the listing shows up in the catalogue
+ * like any other app. It must be filtered out of the browsable catalogue: a store that lists
+ * itself as an installable app is confusing, and "installing" the store you are already running
+ * from inside itself is not a supported operation.
+ */
+const val STORE_APP_PACKAGE = "org.radioplayer.automotive.appstore"
+
 data class AppListing(
     val id: String,
     val name: String,

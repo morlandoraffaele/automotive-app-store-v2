@@ -48,19 +48,23 @@ import java.util.Locale as JavaLocale
 /**
  * The screen header. Port of the web `TopBar`.
  *
- * Layout is unchanged from the web version: an optional back button, a truncating title, then
- * a right-hand cluster of [update summary] → [update-all / in-progress] → [wifi + clock].
- * The web `Clock` re-renders on a 15s interval; the same cadence is used here.
+ * Layout: an optional back button, a truncating title, then a right-hand cluster of
+ * [StoreUpdateBadge] → [wifi + clock]. The web `Clock` re-renders on a 15s interval; the same
+ * cadence is used here.
+ *
+ * The web version also put an app-update pill and an "Update all" button here. Both are gone:
+ * bulk-updating every app from a header control is not a decision a driver should make by accident,
+ * and the pill duplicated the count already on the Installed nav item. What remains is a single
+ * badge for the one update that cannot be reached any other way — the store's own — which links to
+ * Settings, where the actual install lives.
  */
 @Composable
 fun TopBar(
     title: String,
-    updateCount: Int,
-    activeTaskCount: Int,
+    storeUpdateAvailable: Boolean,
     locale: Locale,
     onBack: (() -> Unit)?,
-    onUpdateAll: () -> Unit,
-    onOpenInstalled: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = storeColors
@@ -92,9 +96,6 @@ fun TopBar(
             Text(
                 text = title,
                 modifier = Modifier.weight(1f),
-                // Web `text-3xl` is 33.75px at the web's 18px root. `huge3Medium` is 68sp, which
-                // is twice that and squeezes the title down to an ellipsis next to the
-                // update pill and the clock. `body1Medium` (Step6, 32sp) is the matching role.
                 // Web `text-3xl font-bold` = 33.75px; `body1Medium` is Step6 = 32sp.
                 style = StoreType.xxxlBold,
                 color = colors.foreground,
@@ -102,33 +103,11 @@ fun TopBar(
                 overflow = TextOverflow.Ellipsis,
             )
 
-
-            UpdateSummary(
-                updateCount = updateCount,
+            StoreUpdateBadge(
+                visible = storeUpdateAvailable,
                 showText = metrics.topBarShowsUpdateText,
-                onClick = onOpenInstalled,
+                onClick = onOpenSettings,
             )
-
-            if (activeTaskCount > 0) {
-                TouchButton(
-                    label = translator.t(StringKey.TOPBAR_UPDATING, "n" to activeTaskCount),
-                    onClick = {},
-                    icon = StoreIcons.Updating,
-                    variant = TouchVariant.SECONDARY,
-                    size = TouchSize.ICON,
-                    enabled = false,
-                )
-            } else {
-                // Kept labelled: an icon alone is ambiguous next to the update-count pill, and the
-                // label is what tells a driver what the control does. Compactness comes from the
-                // shorter "Update" wording below, not from dropping the text.
-                TouchButton(
-                    label = translator.t(StringKey.TOPBAR_UPDATE_ALL),
-                    onClick = onUpdateAll,
-                    icon = StoreIcons.UpdateAll,
-                    enabled = updateCount > 0,
-                )
-            }
 
             if (metrics.topBarShowsStatus) {
                 ConnectionCluster(locale = locale)
@@ -137,24 +116,26 @@ fun TopBar(
     }
 }
 
-/** The "N updates available" / "all up to date" pill that links to the Installed screen. */
+/**
+ * The badge announcing that the **store itself** has an update, linking to Settings.
+ *
+ * It is a link, not the update itself: installing the store replaces the running process, so the
+ * action lives in Settings where it can be a deliberate, labelled tap rather than a header control
+ * a driver can hit while swiping between screens. Nothing renders when there is no store update —
+ * the badge is not a persistent "everything is fine" indicator.
+ */
 @Composable
-private fun UpdateSummary(updateCount: Int, showText: Boolean, onClick: () -> Unit) {
+private fun StoreUpdateBadge(visible: Boolean, showText: Boolean, onClick: () -> Unit) {
+    if (!visible) return
+
     val colors = storeColors
-    val hasUpdates = updateCount > 0
-    val label = if (hasUpdates) {
-        translator.t(StringKey.TOPBAR_UPDATES_AVAILABLE, "n" to updateCount)
-    } else {
-        translator.t(StringKey.TOPBAR_NO_UPDATES)
-    }
-    val content = if (hasUpdates) colors.primary else colors.mutedForeground
-    val container = if (hasUpdates) colors.primary.copy(alpha = 0.15f) else Color.Transparent
+    val label = translator.t(StringKey.TOPBAR_STORE_UPDATE_AVAILABLE)
 
     Row(
         modifier = Modifier
             .defaultMinSize(minHeight = AutomotiveTheme.measurement.sizes.minTapArea)
             .clip(RoundedCornerShape(colors.radiusXl))
-            .background(container)
+            .background(colors.warning.copy(alpha = 0.15f))
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -162,25 +143,15 @@ private fun UpdateSummary(updateCount: Int, showText: Boolean, onClick: () -> Un
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
-            source = IconSource.Vector(if (hasUpdates) StoreIcons.UpdatesAvailable else StoreIcons.AllUpToDate),
+            source = IconSource.Vector(StoreIcons.UpdateAll),
             size = AutomotiveTheme.icon.primary,
-            color = if (hasUpdates) colors.primary else colors.success,
+            color = colors.warning,
         )
         if (showText) {
             Text(
                 text = label,
-                // Web `text-lg font-semibold`.
                 style = StoreType.lgSemibold,
-                color = content,
-                maxLines = 1,
-            )
-        } else {
-            // Compact form: the icon alone, with the count exposed to accessibility.
-            Text(
-                text = if (hasUpdates) updateCount.toString() else "",
-                // Web `text-lg font-semibold` (compact form shows the count only).
-                style = StoreType.lgSemibold,
-                color = content,
+                color = colors.warning,
                 maxLines = 1,
             )
         }

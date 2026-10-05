@@ -252,6 +252,34 @@ class CatalogMapperTest {
         )
     }
 
+    // --- store self-update ----------------------------------------------------
+    //
+    // Drives the top-bar badge: the store's own config.json entry compared against the running
+    // versionCode. Compared numerically, never through installedVersionLabel, because that helper
+    // deliberately rewrites towards the published placeholder and would hide a real update.
+
+    @Test
+    fun `a newer published store version is offered as an update`() {
+        assertEquals("20", CatalogMapper.storeUpdateVersionLabel(19, 20))
+    }
+
+    @Test
+    fun `the same published store version is not an update`() {
+        assertNull(CatalogMapper.storeUpdateVersionLabel(20, 20))
+    }
+
+    @Test
+    fun `a device newer than the catalogue advertises is current`() {
+        // config.json carries placeholder versions for many entries, so the store can legitimately
+        // run ahead of what is published. That must not look like a pending downgrade.
+        assertNull(CatalogMapper.storeUpdateVersionLabel(21400, 1))
+    }
+
+    @Test
+    fun `an unreadable installed version suppresses the badge`() {
+        assertNull(CatalogMapper.storeUpdateVersionLabel(null, 20))
+    }
+
     // --- launch-target selection ----------------------------------------------
     //
     // The Open button used `getLaunchIntentForPackage` alone, which only matches an activity

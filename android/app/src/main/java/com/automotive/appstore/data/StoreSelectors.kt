@@ -25,12 +25,29 @@ fun getAppState(snapshot: StoreSnapshot, app: AppListing): AppState {
     val currentVersion = installed?.version
 
     if (task != null) {
-        val status = when (task.phase) {
-            TaskPhase.FAILED -> AppStatus.FAILED
-            TaskPhase.INSTALLING -> AppStatus.INSTALLING
-            TaskPhase.DOWNLOADING -> AppStatus.DOWNLOADING
+        // A FAILED task records that an install attempt did not land; it is a statement about the
+        // attempt, not about the device. It must not override the installed record, which is read
+        // from `PackageManager` and is therefore the authoritative signal. Overriding it made a
+        // correctly installed app report "failed" and show a Retry button with nothing to retry:
+        // the session can be rejected or cancelled after the package has already landed, and
+        // `onAppResumed` only reconciles tasks still in the INSTALLING phase, so the stale failure
+        // outlived the install and nothing ever cleared it.
+        //
+        // Downgrading only applies when the installed version already satisfies the release — an
+        // app that is genuinely behind a failed update must keep reporting FAILED.
+        val satisfiedDespiteFailure = task.phase == TaskPhase.FAILED &&
+            installed != null &&
+            release != null &&
+            installed.version == release.version
+
+        if (!satisfiedDespiteFailure) {
+            val status = when (task.phase) {
+                TaskPhase.FAILED -> AppStatus.FAILED
+                TaskPhase.INSTALLING -> AppStatus.INSTALLING
+                TaskPhase.DOWNLOADING -> AppStatus.DOWNLOADING
+            }
+            return AppState(status, task.progress, currentVersion, task.targetVersion, channel, release)
         }
-        return AppState(status, task.progress, currentVersion, task.targetVersion, channel, release)
     }
 
     if (installed == null) {

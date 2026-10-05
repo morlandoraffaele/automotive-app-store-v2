@@ -29,10 +29,23 @@ class AppRepository(
             "https://automotive.radioplayer.org/store/config.json"
     }
 
-    suspend fun getAppList(): Result<List<App>> {
+    /**
+     * Fetches `store/config.json`.
+     *
+     * @param fresh appends a cache-busting timestamp so an explicit user-triggered re-check cannot
+     *   be answered from an intermediary cache. OkHttp has no `Cache` installed, so the request
+     *   always reaches the network regardless; this only guards against a CDN in front of it, and
+     *   is skipped on the startup path where nothing else has just been fetched.
+     */
+    suspend fun getAppList(fresh: Boolean = false): Result<List<App>> {
         return withContext(Dispatchers.IO) {
             try {
-                val response = apiService.getAppList(APP_LIST_ENDPOINT_URL)
+                val url = if (fresh) {
+                    "$APP_LIST_ENDPOINT_URL?_=${System.currentTimeMillis()}"
+                } else {
+                    APP_LIST_ENDPOINT_URL
+                }
+                val response = apiService.getAppList(url)
                 if (response.isSuccessful) {
                     val appMap = response.body()
                     if (appMap != null) {

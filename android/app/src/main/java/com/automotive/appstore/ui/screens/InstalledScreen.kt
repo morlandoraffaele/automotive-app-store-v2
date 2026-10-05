@@ -28,6 +28,7 @@ import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.AppStatus
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.DEFAULT_CHANNEL_ID
+import com.automotive.appstore.data.STORE_APP_PACKAGE
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppActionButton
@@ -84,7 +85,11 @@ fun InstalledScreen(
         return
     }
 
+    // The store itself is installed by definition, so it would always occupy a row here. Its own
+    // version is surfaced through the dedicated self-update banner instead, and it is excluded
+    // from the browsable catalogue (see `CatalogScreen`), so there is nothing to list.
     val installed = snapshot.catalog.apps
+        .filterNot { it.packageName == STORE_APP_PACKAGE }
         .filter { snapshot.installed.containsKey(it.id) || snapshot.tasks[it.id]?.kind == com.automotive.appstore.data.TaskKind.UPDATE }
         .map { it to getAppState(snapshot, it) }
 
@@ -245,7 +250,6 @@ private fun InstalledRow(
             onUpdate = viewModel::update,
             onCancel = viewModel::cancel,
             onRetry = viewModel::retry,
-            onOpen = viewModel::launch,
         )
     }
 }
