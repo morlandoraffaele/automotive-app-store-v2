@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.ui.theme.translator
@@ -132,6 +133,49 @@ val CATEGORY_ORDER: List<CategoryId> = listOf(
     CategoryId.UTILITIES,
     CategoryId.PARKED,
 )
+
+/**
+ * The `type` chips, in the order the published `type` values should read.
+ *
+ * Sourced from `config.json` rather than derived, so [AppType.OTHER] — the catch-all for types this
+ * build does not recognise — is listed last: it is a safety net, not a category to browse.
+ */
+val TYPE_ORDER: List<AppType> = listOf(AppType.MEDIA, AppType.CUSTOM, AppType.OTHER)
+
+/**
+ * The horizontally scrolling `type` chips.
+ *
+ * Shaped exactly like [CategoryFilterRow] because it is the same control over a different axis: the
+ * catalogue carries both, so the grid is the intersection of the two selections.
+ */
+@Composable
+fun TypeFilterRow(
+    selected: AppType?,
+    onSelect: (AppType?) -> Unit,
+    modifier: Modifier = Modifier,
+    types: List<AppType> = TYPE_ORDER,
+) {
+    val filterLabel = translator.t(StringKey.TYPE_FILTER)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = filterLabel },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            label = translator.t(StringKey.TYPE_ALL),
+            selected = selected == null,
+            onClick = { onSelect(null) },
+        )
+        types.forEach { type ->
+            FilterChip(
+                label = translator.t(typeLabelKey(type)),
+                selected = selected == type,
+                onClick = { onSelect(type) },
+            )
+        }
+    }
+}
 
 /** A single pill in the category filter row. */
 @Composable

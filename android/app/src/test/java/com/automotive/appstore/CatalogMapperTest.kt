@@ -1,6 +1,7 @@
 package com.automotive.appstore
 
 import com.automotive.appstore.data.AppIconName
+import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CatalogMapper
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.DEFAULT_CHANNEL_ID
@@ -9,6 +10,7 @@ import com.automotive.appstore.data.debug.HardcodedConfig
 import com.automotive.appstore.data.getReleaseForChannel
 import com.automotive.appstore.data.remote.App
 import com.automotive.appstore.data.remote.AppDetails
+import com.google.gson.Gson
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -25,18 +27,48 @@ import kotlin.test.assertTrue
  */
 class CatalogMapperTest {
 
-    /** A verbatim entry from the live `config.json`. */
+    /** A verbatim entry from the current `config.json` contract. */
     private val radio = App(
         key = "org.radioplayer.automotive.radio",
         details = AppDetails(
-            id = 1,
+            id = "932dada9-127f-5280-8b31-c586637665f8",
             name = "Radio",
-            description = "The best Radio in the entire Milky Way",
+            description = "A complete, highly polished Radio application built for AAOS.",
+            organization = "Radioplayer",
             packageName = "org.radioplayer.automotive.radio",
             cls = "",
             apkUrl = "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio/source.apk",
             icon = "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio/app_icon.png",
-            remoteVersionCode = 19,
+            versionName = "3.0.0-rc.20",
+            remoteVersionCode = 20,
+            type = "custom",
+            channel = "release-candidate",
+        ),
+    )
+
+    /**
+     * A verbatim entry in the *legacy* document shape, which production still serves.
+     *
+     * Parsed from JSON rather than constructed, because the thing under test is Gson's field
+     * mapping — notably that `version` is accepted as an alias for `versionCode`. Building the
+     * data class directly would bypass the exact behaviour these tests exist to pin.
+     */
+    private val legacy: App = App(
+        key = "org.radioplayer.automotive.radio.legacy",
+        details = Gson().fromJson(
+            """
+            {
+              "id": 7,
+              "name": "Legacy Radio",
+              "description": "An entry still published in the old format.",
+              "packageName": "org.radioplayer.automotive.radio.legacy",
+              "cls": "",
+              "url": "https://automotive.radioplayer.org/store/apps/legacy/source.apk",
+              "icon": "https://automotive.radioplayer.org/store/apps/legacy/app_icon.png",
+              "version": 12
+            }
+            """.trimIndent(),
+            AppDetails::class.java,
         ),
     )
 
@@ -44,15 +76,18 @@ class CatalogMapperTest {
     private val bbc = App(
         key = "com.bbc.sounds",
         details = AppDetails(
-            id = 4,
+            id = "173527b9-99c7-51ec-af17-c97a4605f20e",
             name = "BBC Sounds: Radio & Podcasts",
             description = "This demonstration showcases an App Link feature. " +
                 "The system identifies the tuned FM/DAB channel.",
+            organization = "Radioplayer",
             packageName = "com.bbc.sounds",
             cls = "com.bbc.sounds.mediabrowser.SoundsMediaBrowserService",
             apkUrl = "https://automotive.radioplayer.org/store/apps/com.bbc.sounds/source.apk",
             icon = "https://automotive.radioplayer.org/store/apps/com.bbc.sounds/app_icon.png",
             remoteVersionCode = 1,
+            type = "media",
+            channel = "stable",
         ),
     )
 
@@ -62,9 +97,61 @@ class CatalogMapperTest {
         assertEquals("org.radioplayer.automotive.radio", listing.packageName)
         assertEquals(radio.details.apkUrl, listing.apkUrl)
         assertEquals(radio.details.icon, listing.iconUrl)
-        assertEquals(19, listing.remoteVersionCode)
+        assertEquals(20, listing.remoteVersionCode)
         assertEquals("Radio", listing.name)
-        assertEquals("The best Radio in the entire Milky Way", listing.description)
+        assertEquals("A complete, highly polished Radio application built for AAOS.", listing.description)
+    }
+
+    @Test
+    fun `reads the versionCode the new document publishes`() {
+        assertEquals(20, CatalogMapper.toListing(radio).remoteVersionCode)
+        assertEquals("3.0.0-rc.20", CatalogMapper.toListing(radio).versionName)
+    }
+
+    @Test
+    fun `accepts the legacy version field as versionCode`() {
+        // Production still serves `version`, and reading it as 0 would make every legacy app look
+        // permanently up to date — silently, with no error anywhere.
+        assertEquals(12, legacy.details.remoteVersionCode)
+        assertEquals(12, CatalogMapper.toListing(legacy).remoteVersionCode)
+    }
+
+    @Test
+    fun `the published organization becomes the developer`() {
+        // Replaces the package-prefix guess, which read "Com" for anything under com.bbc.
+        assertEquals("Radioplayer", CatalogMapper.toListing(radio).developer)
+        assertEquals("Radioplayer", CatalogMapper.toListing(bbc).developer)
+    }
+
+    @Test
+    fun `the publisher falls back to the package prefix when organization is absent`() {
+        // The fallback reads the first package segment, so it says "Org" for anything under org.* — which
+// is exactly why the published `organization` is preferred over it.
+        assertEquals("Org", CatalogMapper.toListing(legacy).developer)
+    }
+
+    @Test
+    fun `maps the published type`() {
+        assertEquals(AppType.CUSTOM, CatalogMapper.toListing(radio).type)
+        assertEquals(AppType.MEDIA, CatalogMapper.toListing(bbc).type)
+    }
+
+    @Test
+    fun `an unrecognised or missing type becomes OTHER rather than dropping the app`() {
+        // A type this build has never heard of must stay visible, not vanish from the catalogue.
+        assertEquals(AppType.OTHER, CatalogMapper.toListing(legacy).type)
+        assertEquals(AppType.OTHER, AppType.fromWire("holographic"))
+        assertEquals(AppType.OTHER, AppType.fromWire(null))
+        assertEquals(AppType.MEDIA, AppType.fromWire("  MEDIA  "))
+    }
+
+    @Test
+    fun `the release sits on the published channel, not always stable`() {
+        // Half the catalogue is published on `demo`; labelling all of it stable was wrong as soon
+        // as the channel field existed.
+        assertEquals("release-candidate", CatalogMapper.toListing(radio).releases.single().channelId)
+        // Legacy entries omit it and must still land somewhere valid.
+        assertEquals(DEFAULT_CHANNEL_ID, CatalogMapper.toListing(legacy).releases.single().channelId)
     }
 
     @Test
@@ -76,7 +163,7 @@ class CatalogMapperTest {
     }
 
     @Test
-    fun `publishes exactly one stable release whose version is the remote versionCode`() {
+    fun `publishes exactly one release whose version is the remote versionCode`() {
         val listing = CatalogMapper.toListing(bbc)
         assertEquals(1, listing.releases.size)
         val release = listing.releases.single()
@@ -101,10 +188,10 @@ class CatalogMapperTest {
     fun `an installed version below the remote one reports an update`() {
         val listing = CatalogMapper.toListing(radio)
         val target = getReleaseForChannel(listing, DEFAULT_CHANNEL_ID)?.version
-        assertEquals("19", target)
+        assertEquals("20", target)
         assertTrue(
-            CatalogMapper.versionLabel(18) != target,
-            "18 vs 19 must not read as up to date",
+            CatalogMapper.versionLabel(19) != target,
+            "19 vs 20 must not read as up to date",
         )
     }
 
@@ -198,7 +285,7 @@ class CatalogMapperTest {
             "calendar", "parked-arcade", "tollpass", "musicbox", "com.example.thing",
         ).map { key ->
             App(key = key, details = AppDetails(
-                id = 1,
+                id = key,
                 name = key.substringAfterLast('.'),
                 description = "",
                 packageName = key,
@@ -232,9 +319,9 @@ class CatalogMapperTest {
     }
 
     @Test
-    fun `the developer is the package prefix`() {
-        assertEquals("Org", CatalogMapper.toListing(radio).developer)
-        assertEquals("Com", CatalogMapper.toListing(bbc).developer)
+    fun `the publisher is the published organization`() {
+        assertEquals("Radioplayer", CatalogMapper.toListing(radio).developer)
+        assertEquals("Radioplayer", CatalogMapper.toListing(bbc).developer)
     }
 
     @Test
@@ -263,7 +350,7 @@ class CatalogMapperTest {
     @Test
     fun `the hardcoded config parses into the same shape as the endpoint`() {
         val apps = HardcodedConfig.apps(storeVersionCode = 99)
-        assertEquals(4, apps.size)
+        assertEquals(5, apps.size)
         val store = apps.first { it.key == STORE_APP_PACKAGE }
         assertEquals(STORE_APP_PACKAGE, store.details.packageName)
         assertEquals(99, store.details.remoteVersionCode)

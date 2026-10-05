@@ -34,51 +34,85 @@ object HardcodedConfig {
     const val DEFAULT_STORE_VERSION_BUMP = 1
 
     /**
-     * The raw document, with [storeVersionCode] substituted into the store's `version`.
+     * The raw document, with [storeVersionCode] substituted into the store's `versionCode`.
      *
-     * @param storeVersionCode the `version` to publish for the store's own entry.
+     * Mirrors the current `config.json` contract: UUID `id`, `organization`, `versionName`,
+     * `versionCode`, `type` and `channel`. It deliberately includes one entry of each `type` so
+     * the catalogue's type filter has something to bite on.
+     *
+     * @param storeVersionCode the `versionCode` to publish for the store's own entry.
      */
     fun payload(storeVersionCode: Int): String = """
         {
           "org.radioplayer.automotive.appstore": {
-            "id": 1,
+            "id": "df1f043a-82cc-566f-9262-7bc110d3ef73",
             "name": "App Store (Self Update)",
-            "description": "The best App Store in the entire Milky Way",
+            "description": "Automotive App Store application used to manage and support self-updating apps.",
+            "organization": "Radioplayer",
             "packageName": "$STORE_APP_PACKAGE",
             "cls": "",
             "url": "https://automotive.radioplayer.org/store/apps/$STORE_APP_PACKAGE/source.apk",
             "icon": "https://automotive.radioplayer.org/store/apps/$STORE_APP_PACKAGE/app_icon.png",
-            "version": $storeVersionCode
+            "versionName": "2.0.0",
+            "versionCode": $storeVersionCode,
+            "type": "custom",
+            "channel": "stable"
           },
           "org.radioplayer.automotive.radio": {
-            "id": 1,
+            "id": "932dada9-127f-5280-8b31-c586637665f8",
             "name": "Radio",
-            "description": "The best Radio in the entire Milky Way",
+            "description": "A complete, highly polished Radio application built for AAOS.",
+            "organization": "Radioplayer",
             "packageName": "org.radioplayer.automotive.radio",
             "cls": "",
             "url": "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio/source.apk",
             "icon": "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio/app_icon.png",
-            "version": 20
+            "versionName": "3.0.0",
+            "versionCode": 20,
+            "type": "custom",
+            "channel": "stable"
+          },
+          "org.radioplayer.automotive.radio.alpha": {
+            "id": "454bf8cd-405a-55b6-9185-85ca2e6db828",
+            "name": "Radio (Alpha)",
+            "description": "A complete, highly polished Radio application built for AAOS.",
+            "organization": "Radioplayer",
+            "packageName": "org.radioplayer.automotive.radio.alpha",
+            "cls": "",
+            "url": "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio.alpha/source.apk",
+            "icon": "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio.alpha/app_icon.png",
+            "versionName": "4.0.0-alpha.5",
+            "versionCode": 24,
+            "type": "custom",
+            "channel": "alpha"
           },
           "com.bbc.sounds": {
-            "id": 2,
-            "name": "BBC Sounds",
-            "description": "Listen to radio, podcasts and audio books.",
+            "id": "173527b9-99c7-51ec-af17-c97a4605f20e",
+            "name": "BBC Sounds: Radio & Podcasts",
+            "description": "Identifies the current FM/DAB station and deep links to the equivalent stream.",
+            "organization": "Radioplayer",
             "packageName": "com.bbc.sounds",
-            "cls": "com.bbc.sounds.media.MediaBrowserServiceImpl",
+            "cls": "com.bbc.sounds.mediabrowser.SoundsMediaBrowserService",
             "url": "https://automotive.radioplayer.org/store/apps/com.bbc.sounds/source.apk",
             "icon": "https://automotive.radioplayer.org/store/apps/com.bbc.sounds/app_icon.png",
-            "version": 1
+            "versionName": "",
+            "versionCode": 1,
+            "type": "media",
+            "channel": "stable"
           },
-          "org.radioplayer.automotive.radio.stellantis": {
-            "id": 3,
-            "name": "Radio",
-            "description": "The best Radio in the entire Milky Way, for Stellantis.",
-            "packageName": "org.radioplayer.automotive.radio.stellantis",
-            "cls": "",
-            "url": "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio.stellantis/source.apk",
-            "icon": "https://automotive.radioplayer.org/store/apps/org.radioplayer.automotive.radio.stellantis/app_icon.png",
-            "version": 21
+          "org.radioplayer.radioplayercar.online.headless": {
+            "id": "b1f0c9d4-3a77-5f8e-9c21-6d4b0e2a7f11",
+            "name": "Radioplayer - Radio & Podcast",
+            "description": "Listen to the radio stations you love with the official radio app.",
+            "organization": "Radioplayer",
+            "packageName": "org.radioplayer.radioplayercar.online.headless",
+            "cls": "org.radioplayer.radioplayercar.online.headless.MediaService",
+            "url": "https://automotive.radioplayer.org/store/apps/org.radioplayer.radioplayercar.online.headless/source.apk",
+            "icon": "https://automotive.radioplayer.org/store/apps/org.radioplayer.radioplayercar.online.headless/app_icon.png",
+            "versionName": "",
+            "versionCode": 3045,
+            "type": "media",
+            "channel": "demo"
           }
         }
     """.trimIndent()

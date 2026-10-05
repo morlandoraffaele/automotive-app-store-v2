@@ -18,6 +18,33 @@ enum class CategoryId {
  */
 enum class CategoryFilterValue { ALL, CATEGORY }
 
+/**
+ * The `type` field the catalogue now publishes, and the axis the catalogue filter uses.
+ *
+ * Unlike [CategoryId] — which [CatalogMapper] has to guess from keywords because the endpoint
+ * publishes no category — this is real upstream data, so the filter reflects the catalogue instead
+ * of a heuristic.
+ *
+ * `custom` is a full app with its own UI; `media` is a headless app controlled over a media
+ * session. [OTHER] is the deliberate catch-all: it keeps a type this build has never heard of
+ * visible in the grid rather than silently hiding those apps, and covers the entries the legacy
+ * document left untyped.
+ */
+enum class AppType {
+    MEDIA,
+    CUSTOM,
+    OTHER;
+
+    companion object {
+        /** Maps the wire value, case- and whitespace-insensitively. */
+        fun fromWire(value: String?): AppType = when (value?.trim()?.lowercase()) {
+            "media" -> MEDIA
+            "custom" -> CUSTOM
+            else -> OTHER
+        }
+    }
+}
+
 /** Which glyph an app tile draws. Mirrors the `AppIconName` union. */
 enum class AppIconName {
     NAVIGATION,
@@ -99,8 +126,19 @@ data class AppListing(
     val iconUrl: String? = null,
     /** The media-browser service class the app publishes, if any. */
     val mediaServiceClass: String? = null,
-    /** The `version` field of `config.json`: an Android `versionCode`. */
+    /** The `versionCode` field of `config.json`: an Android `versionCode`. */
     val remoteVersionCode: Int = 0,
+    /** The published `type`, which the catalogue filter groups by. */
+    val type: AppType = AppType.OTHER,
+    /**
+     * The published `versionName` (e.g. `3.0.0-rc.20`), for display.
+     *
+     * Deliberately *not* what install state is derived from: [getAppState] compares
+     * [remoteVersionCode] numerically because that is what the device actually reports, and
+     * `versionName` is empty on many media entries. Kept separate so the two can never be
+     * confused.
+     */
+    val versionName: String? = null,
 )
 
 data class InstalledRecord(

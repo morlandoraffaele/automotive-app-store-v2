@@ -28,6 +28,12 @@ object StringsEn {
         StringKey.CATEGORY_PARKED to "While parked",
         StringKey.CATEGORY_FILTER to "Filter by category",
 
+        StringKey.TYPE_ALL to "All",
+        StringKey.TYPE_FILTER to "Filter by type",
+        StringKey.TYPE_MEDIA to "Media",
+        StringKey.TYPE_CUSTOM to "Custom",
+        StringKey.TYPE_OTHER to "Other",
+
         StringKey.SEARCH_VOICE to "Search by voice",
         StringKey.SEARCH_LISTENING to "Listening…",
         StringKey.SEARCH_TYPE to "Type to search",

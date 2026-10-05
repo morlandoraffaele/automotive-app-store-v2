@@ -29,6 +29,7 @@ import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.STORE_APP_PACKAGE
+import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppTile
@@ -39,6 +40,9 @@ import com.automotive.appstore.ui.components.SearchBar
 import com.automotive.appstore.ui.components.StateMessage
 import com.automotive.appstore.ui.components.StoreIcons
 import com.automotive.appstore.ui.components.TileSkeletonGrid
+import com.automotive.appstore.ui.components.TYPE_ORDER
+import com.automotive.appstore.ui.components.TypeFilterRow
+import com.automotive.appstore.ui.components.typeLabelKey
 import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.theme.translator
@@ -77,6 +81,7 @@ fun CatalogScreen(
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
 
     var category by remember { mutableStateOf<CategoryId?>(null) }
+    var type by remember { mutableStateOf<AppType?>(null) }
     var query by remember { mutableStateOf("") }
 
     val catalog = snapshot.catalog
@@ -89,10 +94,11 @@ fun CatalogScreen(
         catalog.apps.filterNot { it.packageName == STORE_APP_PACKAGE }
     }
 
-    val visible = remember(browsable, category, query) {
+    val visible = remember(browsable, category, type, query) {
         val needle = query.trim().lowercase()
         browsable.filter { app ->
             if (category != null && app.category != category) return@filter false
+            if (type != null && app.type != type) return@filter false
             if (needle.isEmpty()) return@filter true
             listOf(app.name, app.tagline, app.developer, app.description)
                 .any { it.lowercase().contains(needle) }
@@ -110,10 +116,20 @@ fun CatalogScreen(
         CATEGORY_ORDER.filter { it in present }
     }
 
-    // A category can vanish when the catalogue reloads (or a search narrows nothing). Drop a
-    // selection that no longer exists rather than leaving the grid filtered to nothing.
+    // Same rule for `type`: only offer chips the catalogue actually contains, so a catalogue that
+    // publishes only `media` and `custom` never shows an empty "Other" chip.
+    val availableTypes = remember(browsable) {
+        val present = browsable.map { it.type }.toSet()
+        TYPE_ORDER.filter { it in present }
+    }
+
+    // A category or type can vanish when the catalogue reloads (or a search narrows nothing).
+    // Drop a selection that no longer exists rather than leaving the grid filtered to nothing.
     LaunchedEffect(availableCategories, category) {
         if (category != null && category !in availableCategories) category = null
+    }
+    LaunchedEffect(availableTypes, type) {
+        if (type != null && type !in availableTypes) type = null
     }
 
     Column(
@@ -138,6 +154,17 @@ fun CatalogScreen(
                         selected = category,
                         onSelect = { category = it },
                         categories = availableCategories,
+                    )
+                }
+            }
+            // `type` is published by the catalogue, so unlike `category` it is real data and gets
+            // its own filter row. Hidden under the same rule: one chip plus "All" adds nothing.
+            if (availableTypes.size > 1) {
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    TypeFilterRow(
+                        selected = type,
+                        onSelect = { type = it },
+                        types = availableTypes,
                     )
                 }
             }
@@ -174,6 +201,7 @@ fun CatalogScreen(
                         label = translator.t(StringKey.CATALOG_SHOW_ALL),
                         onClick = {
                             category = null
+                            type = null
                             query = ""
                         },
                         variant = TouchVariant.SECONDARY,
@@ -189,10 +217,13 @@ fun CatalogScreen(
             ) {
                 item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                     CatalogHeader(
-                        title = if (query.isNotBlank()) {
-                            translator.t(StringKey.SEARCH_RESULTS_FOR, "q" to query)
-                        } else {
-                            translator.t(category?.let(::categoryLabelKey) ?: StringKey.CATEGORY_ALL)
+                        title = when {
+                            query.isNotBlank() ->
+                                translator.t(StringKey.SEARCH_RESULTS_FOR, "q" to query)
+                            // Two filters are active at once, so the heading names the narrower one:
+                            // `type` is the published axis, `category` is the keyword-derived one.
+                            type != null -> translator.t(typeLabelKey(type!!))
+                            else -> translator.t(category?.let(::categoryLabelKey) ?: StringKey.CATEGORY_ALL)
                         },
                         count = visible.size,
                     )

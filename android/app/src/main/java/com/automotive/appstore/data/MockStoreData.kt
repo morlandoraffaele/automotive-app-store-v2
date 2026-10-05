@@ -18,23 +18,37 @@ object MockStoreData {
             description = "Fully tested. Recommended for everyday driving.",
             stabilityRank = 0,
         ),
+        // `demo` and `release-candidate` are what `config.json` actually publishes; the rest are
+        // kept for the mock fixtures below, which still reference them.
+        ChannelDefinition(
+            id = "demo",
+            name = "Demo",
+            description = "Demo builds for evaluation vehicles.",
+            stabilityRank = 1,
+        ),
+        ChannelDefinition(
+            id = "release-candidate",
+            name = "Release candidate",
+            description = "Almost ready. Only a handful of fixes outstanding.",
+            stabilityRank = 2,
+        ),
         ChannelDefinition(
             id = "beta",
             name = "Beta",
             description = "Upcoming features, mostly stable. Minor issues possible.",
-            stabilityRank = 1,
+            stabilityRank = 3,
         ),
         ChannelDefinition(
             id = "develop",
             name = "Develop",
             description = "Nightly builds. Features may change or break.",
-            stabilityRank = 2,
+            stabilityRank = 4,
         ),
         ChannelDefinition(
             id = "alpha",
             name = "Alpha",
             description = "Early experiments for internal testing.",
-            stabilityRank = 3,
+            stabilityRank = 5,
             locked = true,
             lockReason = "Only available on enrolled developer vehicles.",
         ),

@@ -35,6 +35,17 @@ android {
         targetSdk = 37
         versionCode = 2
         versionName = "2.0.0"
+
+        /**
+         * The catalogue endpoint, read by `AppRepository`.
+         *
+         * Lives here rather than as a Kotlin constant so a QA or CI build can be pointed at a
+         * staging catalogue with `-PappListEndpoint=...` without editing source. See
+         * [appListEndpoint] below for how the override is resolved.
+         */
+        val appListEndpoint = (project.findProperty("appListEndpoint") as String?)
+            ?: "https://automotive.radioplayer.org/store/v2/config.json"
+        buildConfigField("String", "APP_LIST_ENDPOINT_URL", "\"$appListEndpoint\"")
     }
 
     /**
@@ -62,6 +73,7 @@ android {
     }
 
     buildTypes {
+
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -81,6 +93,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Required by buildConfigField above; the AGP default is off since 8.x.
+        buildConfig = true
     }
 }
 

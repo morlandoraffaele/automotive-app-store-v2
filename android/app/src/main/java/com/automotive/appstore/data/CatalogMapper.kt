@@ -80,7 +80,7 @@ object CatalogMapper {
         return AppListing(
             id = app.key,
             name = details.name,
-            developer = developerOf(app.key),
+            developer = developerOf(app.key, details),
             tagline = taglineOf(details),
             description = details.description,
             category = classification.category,
@@ -93,7 +93,10 @@ object CatalogMapper {
             screenshots = emptyList(),
             releases = listOf(
                 ChannelRelease(
-                    channelId = DEFAULT_CHANNEL_ID,
+                    // The catalogue publishes which channel each entry is on. Defaulting to
+                    // `stable` was right when the field did not exist; now it would mislabel 16
+                    // `demo` entries as stable. Falls back for the legacy document, which omits it.
+                    channelId = details.channel?.takeIf { it.isNotBlank() } ?: DEFAULT_CHANNEL_ID,
                     version = versionLabel(details.remoteVersionCode),
                     releaseDate = "",
                     changelog = emptyList(),
@@ -104,6 +107,8 @@ object CatalogMapper {
             iconUrl = details.icon,
             mediaServiceClass = details.cls,
             remoteVersionCode = details.remoteVersionCode,
+            type = AppType.fromWire(details.type),
+            versionName = details.versionName?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -286,10 +291,15 @@ object CatalogMapper {
     }
 
     /**
-     * The publisher, read off the package prefix: `org.radioplayer.automotive.radio` reads as
-     * "Radioplayer". Falls back to the whole package when there is no prefix to speak of.
+     * The publisher.
+     *
+     * The catalogue now publishes an `organization`, which is authoritative and used whenever it is
+     * present. The package-prefix fallback only survives for the legacy document, which has no such
+     * field: `org.radioplayer.automotive.radio` reads as "Radioplayer", and falls back to the whole
+     * package when there is no prefix to speak of.
      */
-    private fun developerOf(packageName: String): String {
+    private fun developerOf(packageName: String, details: AppDetails): String {
+        details.organization?.takeIf { it.isNotBlank() }?.let { return it }
         val prefix = packageName.split('.').firstOrNull { it.isNotBlank() } ?: return packageName
         return prefix.replaceFirstChar { it.uppercase() }
     }

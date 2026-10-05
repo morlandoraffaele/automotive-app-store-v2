@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.automotive.appstore.BuildConfig
 import com.automotive.appstore.data.debug.HardcodedConfig
 import com.automotive.appstore.data.local.AppLocalDataStore
 import com.automotive.appstore.data.remote.App
@@ -26,8 +27,6 @@ class AppRepository(
 ) {
     companion object {
         private const val TAG = "AppRepository"
-        private const val APP_LIST_ENDPOINT_URL =
-            "https://automotive.radioplayer.org/store/config.json"
     }
 
     /**
@@ -50,9 +49,9 @@ class AppRepository(
                     return@withContext Result.success(hardcodedApps())
                 }
                 val url = if (fresh) {
-                    "$APP_LIST_ENDPOINT_URL?_=${System.currentTimeMillis()}"
+                    "${BuildConfig.APP_LIST_ENDPOINT_URL}?_=${System.currentTimeMillis()}"
                 } else {
-                    APP_LIST_ENDPOINT_URL
+                    BuildConfig.APP_LIST_ENDPOINT_URL
                 }
                 val response = apiService.getAppList(url)
                 if (response.isSuccessful) {

@@ -30,6 +30,12 @@ object StringsAr {
         StringKey.CATEGORY_PARKED to "أثناء الوقوف",
         StringKey.CATEGORY_FILTER to "التصفية حسب الفئة",
 
+        StringKey.TYPE_ALL to "كل الأنواع",
+        StringKey.TYPE_FILTER to "التصفية حسب النوع",
+        StringKey.TYPE_MEDIA to "وسائط",
+        StringKey.TYPE_CUSTOM to "تطبيقات",
+        StringKey.TYPE_OTHER to "أخرى",
+
         StringKey.SEARCH_VOICE to "البحث بالصوت",
         StringKey.SEARCH_LISTENING to "جارٍ الاستماع…",
         StringKey.SEARCH_TYPE to "الكتابة للبحث",

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.automotive.appstore.data.AppListing
 import com.automotive.appstore.data.AppState
 import com.automotive.appstore.data.AppStatus
+import com.automotive.appstore.data.AppType
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.ui.theme.translator
@@ -168,6 +169,13 @@ fun categoryLabelKey(category: CategoryId): StringKey = when (category) {
     CategoryId.COMMUNICATION -> StringKey.CATEGORY_COMMUNICATION
     CategoryId.UTILITIES -> StringKey.CATEGORY_UTILITIES
     CategoryId.PARKED -> StringKey.CATEGORY_PARKED
+}
+
+/** Maps an [AppType] to its translation key. */
+fun typeLabelKey(type: AppType): StringKey = when (type) {
+    AppType.MEDIA -> StringKey.TYPE_MEDIA
+    AppType.CUSTOM -> StringKey.TYPE_CUSTOM
+    AppType.OTHER -> StringKey.TYPE_OTHER
 }
 
 /**
