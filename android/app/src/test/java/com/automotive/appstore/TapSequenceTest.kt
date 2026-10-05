@@ -90,4 +90,32 @@ class TapSequenceTest {
         assertEquals(0, sequence.taps)
         assertFalse(sequence.unlocked)
     }
+
+    @Test
+    fun `an unlock survives going past the reset window`() {
+        // Regression: the rolling window used to be applied *after* a completed unlock too, so the
+        // developer sections re-hid themselves seconds later — the user would unlock them and then
+        // find them gone by the time they scrolled down. The window is only about earning it.
+        val sequence = TapSequence()
+        repeat(AdvancedSettingsUnlock.REQUIRED_TAPS) { i ->
+            sequence.tap(nowMs = i * 100L)
+        }
+        assertTrue(sequence.unlocked)
+
+        // Well past the window.
+        assertTrue(sequence.isExpired(nowMs = 100_000L))
+        assertTrue(sequence.unlocked, "unlock must latch once earned")
+    }
+
+    @Test
+    fun `an incomplete sequence still expires`() {
+        // The other half: the window must keep working while the count is still climbing, or the
+        // gesture becomes reachable by accident.
+        val sequence = TapSequence()
+        repeat(AdvancedSettingsUnlock.REQUIRED_TAPS - 1) { i ->
+            sequence.tap(nowMs = i * 100L)
+        }
+        assertTrue(sequence.isExpired(nowMs = 100_000L))
+        assertFalse(sequence.unlocked)
+    }
 }

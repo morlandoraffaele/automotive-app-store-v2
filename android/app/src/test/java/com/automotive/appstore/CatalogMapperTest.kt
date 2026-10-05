@@ -4,6 +4,8 @@ import com.automotive.appstore.data.AppIconName
 import com.automotive.appstore.data.CatalogMapper
 import com.automotive.appstore.data.CategoryId
 import com.automotive.appstore.data.DEFAULT_CHANNEL_ID
+import com.automotive.appstore.data.STORE_APP_PACKAGE
+import com.automotive.appstore.data.debug.HardcodedConfig
 import com.automotive.appstore.data.getReleaseForChannel
 import com.automotive.appstore.data.remote.App
 import com.automotive.appstore.data.remote.AppDetails
@@ -250,6 +252,38 @@ class CatalogMapperTest {
             listOf("org.radioplayer.automotive.radio", "com.bbc.sounds"),
             listings.map { it.id },
         )
+    }
+
+    // --- hardcoded catalogue override -----------------------------------------
+    //
+    // The override is the only way to exercise the self-update path, because the real
+    // config.json publishes the same versionCode the APK is built at. These pin that it keeps
+    // matching the AppDetails contract, since a typo here would look like "no update available".
+
+    @Test
+    fun `the hardcoded config parses into the same shape as the endpoint`() {
+        val apps = HardcodedConfig.apps(storeVersionCode = 99)
+        assertEquals(4, apps.size)
+        val store = apps.first { it.key == STORE_APP_PACKAGE }
+        assertEquals(STORE_APP_PACKAGE, store.details.packageName)
+        assertEquals(99, store.details.remoteVersionCode)
+        assertTrue(store.details.apkUrl.isNotBlank())
+    }
+
+    @Test
+    fun `the hardcoded config publishes the version it is given`() {
+        // The whole point of the override: whatever number is pinned has to reach the mapper
+        // unchanged, because that is the number the badge compares.
+        assertEquals(3, HardcodedConfig.apps(3).first { it.key == STORE_APP_PACKAGE }.details.remoteVersionCode)
+        assertEquals(500, HardcodedConfig.apps(500).first { it.key == STORE_APP_PACKAGE }.details.remoteVersionCode)
+    }
+
+    @Test
+    fun `the hardcoded config makes the store look out of date`() {
+        // Ties the override to the badge: publishing one above the installed code is what turns
+        // `storeUpdateVersionLabel` non-null.
+        assertEquals("21", CatalogMapper.storeUpdateVersionLabel(20, 21))
+        assertNull(CatalogMapper.storeUpdateVersionLabel(20, 20))
     }
 
     // --- store self-update ----------------------------------------------------

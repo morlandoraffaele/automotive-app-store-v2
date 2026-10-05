@@ -41,6 +41,8 @@ import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.ProgressRing
 import com.automotive.appstore.ui.components.SkeletonBlock
 import com.automotive.appstore.ui.components.StoreIcons
+import com.automotive.appstore.ui.components.TouchButton
+import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.components.rememberTapTracker
 import com.automotive.appstore.ui.theme.LocalTranslator
 import com.automotive.appstore.ui.theme.StoreType
@@ -170,6 +172,26 @@ fun SettingsScreen(
                         selected = settings.simulation,
                         onSelect = { viewModel.updateSettings(settings.copy(simulation = it)) },
                     )
+
+                    SettingsDivider()
+                    val hardcoded = viewModel.isHardcodedConfigEnabled()
+                    ToggleRow(
+                        label = translator.t(StringKey.SETTINGS_HARDCODED_CONFIG),
+                        description = translator.t(StringKey.SETTINGS_HARDCODED_CONFIG_DESC),
+                        checked = hardcoded,
+                        onChange = viewModel::setHardcodedConfigEnabled,
+                    )
+                    // Only meaningful while the override is on: the number is what the frozen
+                    // document publishes for the store's own `version`, which is the single field
+                    // the top-bar badge turns on. "Auto" derives installed + 1.
+                    if (hardcoded) {
+                        SettingsDivider()
+                        HardcodedStoreVersionRow(
+                            pinned = viewModel.hardcodedStoreVersion(),
+                            installed = viewModel.installedStoreVersionCode(),
+                            onChange = viewModel::setHardcodedStoreVersion,
+                        )
+                    }
                 }
             }
         }
@@ -439,6 +461,67 @@ private fun StoreUpdateAction(
             style = StoreType.xlSemibold,
             color = storeColors.primary,
             maxLines = 2,
+        )
+    }
+}
+
+/**
+ * Editor for the store `version` the hardcoded config publishes.
+ *
+ * A stepper rather than a free-text field: the only interesting values are "at or below what is
+ * installed" (no badge) and "above it" (badge), and an automotive keyboard is a poor way to type a
+ * number. "Auto" clears the pin so the repository derives installed + 1, which keeps the override
+ * honest across a real self-update instead of drifting.
+ */
+@Composable
+private fun HardcodedStoreVersionRow(
+    pinned: Int?,
+    installed: Int?,
+    onChange: (Int?) -> Unit,
+) {
+    val label = pinned?.toString() ?: translator.t(StringKey.SETTINGS_HARDCODED_AUTO)
+    // Step from whatever the stepper currently shows, so the first tap pins an explicit value
+    // rather than jumping from "Auto" straight to an arbitrary number.
+    val base = pinned ?: installed ?: 0
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = translator.t(StringKey.SETTINGS_HARDCODED_STORE_VERSION),
+                style = StoreType.xlSemibold,
+                color = storeColors.foreground,
+                maxLines = 1,
+            )
+            Text(
+                text = translator.t(StringKey.SETTINGS_HARDCODED_STORE_VERSION_DESC),
+                style = StoreType.lg,
+                color = storeColors.mutedForeground,
+                maxLines = 2,
+            )
+        }
+
+        TouchButton(
+            label = "−",
+            onClick = { onChange((base - 1).coerceAtLeast(0)) },
+            variant = TouchVariant.OUTLINE,
+        )
+        Text(
+            text = label,
+            style = StoreType.xl.copy(fontFamily = FontFamily.Monospace),
+            color = storeColors.foreground,
+            maxLines = 1,
+        )
+        TouchButton(
+            label = "+",
+            onClick = { onChange(base + 1) },
+            variant = TouchVariant.OUTLINE,
         )
     }
 }

@@ -67,4 +67,22 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     fun onAppResumed() = repository.onAppResumed()
 
     fun updateSettings(settings: StoreSettings) = repository.updateSettings(settings)
+
+    // --- debug catalogue override ---------------------------------------------
+    //
+    // Not snapshot-backed: the flag lives in SharedPreferences and is read on demand, so there is
+    // no state to observe. Changing either one reloads the catalogue, which re-runs the self-update
+    // check and refreshes the badge.
+
+    fun isHardcodedConfigEnabled(): Boolean = repository.isHardcodedConfigEnabled()
+
+    fun setHardcodedConfigEnabled(enabled: Boolean) =
+        repository.setHardcodedConfigEnabled(enabled)
+
+    fun hardcodedStoreVersion(): Int? = repository.hardcodedStoreVersion()
+
+    fun installedStoreVersionCode(): Int? = repository.installedStoreVersionCode()
+
+    fun setHardcodedStoreVersion(versionCode: Int?) =
+        repository.setHardcodedStoreVersion(versionCode)
 }

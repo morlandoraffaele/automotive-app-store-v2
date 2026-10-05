@@ -48,8 +48,19 @@ class TapSequence(
 
     private var lastTapAt: Long = Long.MIN_VALUE
 
-    /** True once [required] taps have landed inside the rolling window. */
-    val unlocked: Boolean get() = taps >= required
+    /**
+     * Whether the gesture has been completed.
+     *
+     * Latched rather than derived from [taps], because the rolling window is only about *earning*
+     * the unlock — it stops 20 unhurried taps from counting. It must not undo a completed unlock:
+     * the sections have to stay put long enough to be read and used. Deriving this as
+     * `taps >= required` meant the idle timer re-locked the developer sections three seconds after
+     * every successful unlock, so they vanished while the user was scrolling down to them.
+     *
+     * Re-hiding on restart is still the default, because the state is in-memory only.
+     */
+    var unlocked: Boolean = false
+        private set
 
     /**
      * Records a tap at [nowMs].
@@ -62,6 +73,7 @@ class TapSequence(
         val consecutive = lastTapAt != Long.MIN_VALUE && nowMs - lastTapAt <= resetAfterMs
         taps = if (consecutive) taps + 1 else 1
         lastTapAt = nowMs
+        if (taps >= required) unlocked = true
         return taps
     }
 
@@ -69,9 +81,15 @@ class TapSequence(
     fun isExpired(nowMs: Long): Boolean =
         taps > 0 && lastTapAt != Long.MIN_VALUE && nowMs - lastTapAt > resetAfterMs
 
-    /** Drops the banked taps. Called when the idle timer fires. */
+    /**
+     * Drops the banked taps and re-locks.
+     *
+     * Only called while still counting — once [unlocked] it must not be called, which is what keeps
+     * a completed unlock latched.
+     */
     fun reset() {
         taps = 0
+        unlocked = false
     }
 }
 
@@ -111,8 +129,12 @@ fun rememberTapTracker(
 
     // Idle fallback: expires the sequence even if no further tap ever arrives. Keying on `taps`
     // restarts the timer on every tap, so the window is measured from the latest one.
+    //
+    // Guarded on `!sequence.unlocked`: the window exists only to stop unhurried taps from *earning*
+    // the unlock. Firing it after a completed unlock re-hid the developer sections seconds later,
+    // which is what made them appear to vanish on the way down the screen.
     LaunchedEffect(taps) {
-        if (taps > 0) {
+        if (taps > 0 && !sequence.unlocked) {
             delay(resetAfterMs)
             sequence.reset()
             taps = 0
@@ -121,7 +143,7 @@ fun rememberTapTracker(
 
     return TapTracker(
         taps = taps,
-        unlocked = taps >= required,
+        unlocked = sequence.unlocked,
         register = register,
     )
 }

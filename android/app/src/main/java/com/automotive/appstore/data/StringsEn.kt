@@ -147,6 +147,13 @@ object StringsEn {
         StringKey.SETTINGS_STORE_RESTARTING to "Restarting…",
         StringKey.SETTINGS_STORE_READY to "Version {version} ready · Restarts when parked",
         StringKey.SETTINGS_DEMO to "Demo",
+        StringKey.SETTINGS_HARDCODED_CONFIG to "Hardcoded config.json",
+        StringKey.SETTINGS_HARDCODED_CONFIG_DESC to
+            "Serve a frozen catalogue instead of the network, to test store updates.",
+        StringKey.SETTINGS_HARDCODED_STORE_VERSION to "Published store version",
+        StringKey.SETTINGS_HARDCODED_STORE_VERSION_DESC to
+            "Version the frozen config publishes. Auto = installed + 1.",
+        StringKey.SETTINGS_HARDCODED_AUTO to "Auto",
         StringKey.SETTINGS_SIMULATION to "Simulate catalog",
         StringKey.SETTINGS_SIM_NORMAL to "Normal",
         StringKey.SETTINGS_SIM_LOADING to "Loading",

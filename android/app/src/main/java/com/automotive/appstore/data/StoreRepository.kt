@@ -218,19 +218,25 @@ class StoreRepository(
         set { it.copy(catalog = Catalog(CatalogStatus.LOADING, it.catalog.apps)) }
 
         val mode = _snapshot.value.settings.simulation
-        if (mode == CatalogSimulation.LOADING) return
+        // The hardcoded override wins over the simulation switch. Both are developer affordances
+        // that replace the catalogue, and the override is the more specific of the two: leaving it
+        // subordinate would mean toggling it silently does nothing whenever the simulation happens
+        // to sit on EMPTY or ERROR.
+        if (!api.isHardcodedConfigEnabled()) {
+            if (mode == CatalogSimulation.LOADING) return
 
-        if (mode != CatalogSimulation.NORMAL) {
-            set { current ->
-                current.copy(
-                    catalog = when (mode) {
-                        CatalogSimulation.ERROR -> Catalog(CatalogStatus.ERROR, emptyList())
-                        CatalogSimulation.EMPTY -> Catalog(CatalogStatus.READY, emptyList())
-                        else -> current.catalog
-                    }
-                )
+            if (mode != CatalogSimulation.NORMAL) {
+                set { current ->
+                    current.copy(
+                        catalog = when (mode) {
+                            CatalogSimulation.ERROR -> Catalog(CatalogStatus.ERROR, emptyList())
+                            CatalogSimulation.EMPTY -> Catalog(CatalogStatus.READY, emptyList())
+                            else -> current.catalog
+                        }
+                    )
+                }
+                return
             }
-            return
         }
 
         jobs[CATALOG_JOB] = scope.launch {
@@ -528,6 +534,35 @@ class StoreRepository(
         val simulationChanged = settings.simulation != _snapshot.value.settings.simulation
         set { it.copy(settings = settings) }
         if (simulationChanged) reloadCatalog()
+    }
+
+    /**
+     * Whether the debug catalogue replaces `config.json`. See [HardcodedConfig].
+     *
+     * Reloading is what makes the change visible: `reloadCatalog` re-runs the startup self-update
+     * check on the response it gets back, so the badge and the Settings row both refresh in step.
+     */
+    fun isHardcodedConfigEnabled(): Boolean = api.isHardcodedConfigEnabled()
+
+    fun setHardcodedConfigEnabled(enabled: Boolean) {
+        api.setHardcodedConfigEnabled(enabled)
+        reloadCatalog()
+    }
+
+    /** The store `version` the debug catalogue publishes, or `null` when it is derived. */
+    fun hardcodedStoreVersion(): Int? = api.hardcodedStoreVersion()
+
+    /**
+     * The running store's `versionCode` — the left-hand side of the self-update comparison.
+     *
+     * Read from `PackageManager` rather than a build constant so the debug stepper is anchored to
+     * exactly the number [resolveStoreUpdate] compares against, not a copy of it that could drift.
+     */
+    fun installedStoreVersionCode(): Int? = currentStoreVersionCode()
+
+    fun setHardcodedStoreVersion(versionCode: Int?) {
+        api.setHardcodedStoreVersion(versionCode)
+        reloadCatalog()
     }
 
     /**

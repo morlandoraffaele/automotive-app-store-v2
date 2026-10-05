@@ -147,6 +147,13 @@ object StringsAr {
         StringKey.SETTINGS_STORE_RESTARTING to "جارٍ إعادة التشغيل…",
         StringKey.SETTINGS_STORE_READY to "الإصدار {version} جاهز · يُعاد التشغيل عند الوقوف",
         StringKey.SETTINGS_DEMO to "عرض توضيحي",
+        StringKey.SETTINGS_HARDCODED_CONFIG to "ملف config.json ثابت",
+        StringKey.SETTINGS_HARDCODED_CONFIG_DESC to
+            "يستخدم كتالوجًا ثابتًا بدل الشبكة لاختبار تحديثات المتجر.",
+        StringKey.SETTINGS_HARDCODED_STORE_VERSION to "إصدار المتجر المنشور",
+        StringKey.SETTINGS_HARDCODED_STORE_VERSION_DESC to
+            "الإصدار الذي ينشره الملف الثابت. تلقائي = المُثبَّت + 1.",
+        StringKey.SETTINGS_HARDCODED_AUTO to "تلقائي",
         StringKey.SETTINGS_SIMULATION to "محاكاة الكتالوج",
         StringKey.SETTINGS_SIM_NORMAL to "عادي",
         StringKey.SETTINGS_SIM_LOADING to "تحميل",

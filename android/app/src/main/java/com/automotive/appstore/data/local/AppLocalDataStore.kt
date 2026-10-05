@@ -16,6 +16,8 @@ class AppLocalDataStore(context: Context) {
         private const val PREFS_NAME = "app_store_local_data_prefs"
         private const val KEY_RECORDED_VERSION_PREFIX = "recorded_version_"
         private const val KEY_DOWNLOAD_ID_PREFIX = "download_id_"
+        private const val KEY_HARDCODED_CONFIG = "hardcoded_config_enabled"
+        private const val KEY_HARDCODED_STORE_VERSION = "hardcoded_config_store_version"
     }
 
     private val sharedPreferences: SharedPreferences? =
@@ -46,5 +48,40 @@ class AppLocalDataStore(context: Context) {
 
     fun clearDownloadId(packageName: String) {
         sharedPreferences?.edit()?.remove(KEY_DOWNLOAD_ID_PREFIX + packageName)?.apply()
+    }
+
+    // --- debug catalogue override -------------------------------------------------
+    //
+    // Persisted rather than in-memory because the self-update badge is evaluated at startup: an
+    // in-memory flag would be lost on every process restart, which is precisely when the behaviour
+    // under test happens.
+
+    /** Whether [com.automotive.appstore.data.debug.HardcodedConfig] replaces the network response. */
+    fun isHardcodedConfigEnabled(): Boolean =
+        sharedPreferences?.getBoolean(KEY_HARDCODED_CONFIG, false) ?: false
+
+    fun setHardcodedConfigEnabled(enabled: Boolean) {
+        sharedPreferences?.edit()?.putBoolean(KEY_HARDCODED_CONFIG, enabled)?.apply()
+    }
+
+    /**
+     * The store `version` the hardcoded config should publish.
+     *
+     * `null` means "derive one", which the repository resolves to the installed `versionCode` plus
+     * a small bump — so enabling the override shows the badge without anyone having to work out a
+     * number first.
+     */
+    fun getHardcodedStoreVersion(): Int? {
+        val version = sharedPreferences?.getInt(KEY_HARDCODED_STORE_VERSION, -1)
+        return if (version == -1) null else version
+    }
+
+    fun setHardcodedStoreVersion(versionCode: Int?) {
+        val editor = sharedPreferences?.edit() ?: return
+        if (versionCode == null) {
+            editor.remove(KEY_HARDCODED_STORE_VERSION).apply()
+        } else {
+            editor.putInt(KEY_HARDCODED_STORE_VERSION, versionCode).apply()
+        }
     }
 }
