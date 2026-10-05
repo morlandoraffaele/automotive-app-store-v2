@@ -9,6 +9,7 @@ import com.automotive.appstore.data.debug.HardcodedConfig
 import com.automotive.appstore.data.getReleaseForChannel
 import com.automotive.appstore.data.remote.App
 import com.automotive.appstore.data.remote.AppDetails
+import com.automotive.appstore.ui.components.typeLabel
 import com.automotive.appstore.ui.screens.versionChangeLabel
 import com.google.gson.Gson
 import org.junit.Test
@@ -346,6 +347,21 @@ class CatalogMapperTest {
     }
 
     // --- detail-header tag values ---------------------------------------------
+
+    @Test
+    fun `the type filter label capitalises the published value`() {
+        // Display only: the value the filter selects on stays the raw lower-case string, so this
+        // must not be used to normalise the listing itself.
+        assertEquals("Media", typeLabel("media"))
+        assertEquals("Custom", typeLabel("custom"))
+        assertEquals("Release candidate", typeLabel("release candidate"))
+        assertEquals("", typeLabel(""))
+    }
+
+    @Test
+    fun `the type filter label leaves an already capitalised value alone`() {
+        assertEquals("Media", typeLabel("Media"))
+    }
 
     @Test
     fun `the version change label omits an arrow when there is nothing to move to`() {

@@ -135,6 +135,17 @@ val CATEGORY_ORDER: List<CategoryId> = listOf(
 )
 
 /**
+ * A `type` value as it should read in the filter row: `media` → `Media`.
+ *
+ * Display only. The stored value stays exactly as published and lower-cased, because that is what
+ * the filter matches against and what the tiles render — capitalising the data instead would make
+ * selection case-sensitive and break as soon as the backend changed a value's casing.
+ *
+ * @param type the raw published value.
+ */
+fun typeLabel(type: String): String = type.replaceFirstChar { it.uppercaseChar() }
+
+/**
  * The horizontally scrolling `type` chips.
  *
  * Shaped exactly like [CategoryFilterRow] because it is the same control over a different axis: the
@@ -165,8 +176,9 @@ fun TypeFilterRow(
         )
         types.forEach { type ->
             FilterChip(
-                // Shown exactly as published, so the label always matches what the endpoint says.
-                label = type,
+                // Capitalised for legibility as a chip, but the selected value stays the raw
+                // string so it still matches the listing's `type` exactly.
+                label = typeLabel(type),
                 selected = selected == type,
                 onClick = { onSelect(type) },
             )

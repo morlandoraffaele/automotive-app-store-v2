@@ -193,13 +193,6 @@ private fun DetailHeader(app: AppListing, state: AppState, viewModel: StoreViewM
                     color = storeColors.foreground,
                     maxLines = 2,
                 )
-                Text(
-                    text = translator.t(StringKey.DETAIL_DEVELOPER, "name" to app.developer),
-                    // Web `text-xl text-muted-foreground` = 22.5px.
-                    style = StoreType.xl,
-                    color = storeColors.mutedForeground,
-                    maxLines = 1,
-                )
             }
 
             MetaTagRow {

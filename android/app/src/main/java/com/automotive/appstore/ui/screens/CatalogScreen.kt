@@ -40,6 +40,7 @@ import com.automotive.appstore.ui.components.StateMessage
 import com.automotive.appstore.ui.components.StoreIcons
 import com.automotive.appstore.ui.components.TileSkeletonGrid
 import com.automotive.appstore.ui.components.TypeFilterRow
+import com.automotive.appstore.ui.components.typeLabel
 import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.theme.translator
@@ -229,7 +230,9 @@ fun CatalogScreen(
                                 translator.t(StringKey.SEARCH_RESULTS_FOR, "q" to query)
                             // Two filters are active at once, so the heading names the narrower one:
                             // `type` is the published axis, `category` is the keyword-derived one.
-                            type != null -> type!!
+                            // Capitalised like its chip, so the heading reads as the label the
+                            // user just tapped rather than as a raw wire value.
+                            type != null -> typeLabel(type!!)
                             else -> translator.t(category?.let(::categoryLabelKey) ?: StringKey.CATEGORY_ALL)
                         },
                         count = visible.size,
