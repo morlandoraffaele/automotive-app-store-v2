@@ -48,7 +48,6 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.automotive.appstore.data.AppIconName
 import com.automotive.appstore.data.CategoryId
-import com.automotive.appstore.data.PermissionId
 
 /**
  * Icon set for the store.
@@ -111,17 +110,6 @@ object StoreIcons {
         AppIconName.RADIO -> Icons.Filled.Radio
         AppIconName.GAMES -> Icons.Filled.SportsEsports
         AppIconName.TOLLS -> Icons.Filled.ConfirmationNumber
-    }
-
-    /** Glyph for a permission row, keyed by [PermissionId]. */
-    fun forPermission(permission: PermissionId): ImageVector = when (permission) {
-        PermissionId.LOCATION -> Icons.Filled.DriveEta
-        PermissionId.MICROPHONE -> Icons.Filled.Mic
-        PermissionId.CONTACTS -> Icons.Filled.Message
-        PermissionId.VEHICLE_DATA -> Icons.Filled.DirectionsCar
-        PermissionId.NOTIFICATIONS -> Icons.Filled.Smartphone
-        PermissionId.STORAGE -> Icons.Filled.Storage
-        PermissionId.PHONE -> Icons.Filled.PhoneAndroid
     }
 
     /** Glyph for a category, keyed by [CategoryId]. */

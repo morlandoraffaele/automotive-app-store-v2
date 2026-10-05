@@ -148,7 +148,6 @@ fun StoreApp(
                         // The store's own update is the only one reachable from the header now;
                         // per-app updates live on the Installed screen, behind the nav badge.
                         storeUpdateAvailable = snapshot.storeUpdate.availableVersion != null,
-                        locale = settings.locale,
                         onBack = Routes.backTarget(destination)?.let { target ->
                             { navigator.select(target) }
                         },

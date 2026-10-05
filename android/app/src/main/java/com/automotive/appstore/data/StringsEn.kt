@@ -17,7 +17,6 @@ object StringsEn {
 
         StringKey.TOPBAR_UPDATES_AVAILABLE to "Updates available ({n})",
         StringKey.TOPBAR_STORE_UPDATE_AVAILABLE to "Store update available",
-        StringKey.TOPBAR_WIFI to "Connected to Wi-Fi",
 
         StringKey.CATEGORY_ALL to "All",
         StringKey.CATEGORY_NAVIGATION to "Navigation",
@@ -98,9 +97,6 @@ object StringsEn {
         StringKey.DETAIL_COMING_SOON_TITLE to "Coming soon",
         StringKey.DETAIL_COMING_SOON_BODY to "Release notes aren’t available yet.",
         StringKey.DETAIL_CHANNELS to "Channels",
-        StringKey.DETAIL_SCREENSHOTS to "Screenshots",
-        StringKey.DETAIL_SCREENSHOT_ALT to "{name} screenshot {n}",
-        StringKey.DETAIL_PERMISSIONS to "Permissions",
         StringKey.DETAIL_RELEASED_ON to "Released {date}",
         StringKey.DETAIL_NEW_IN to "New in {version}",
         StringKey.DETAIL_ACTIVE_CHANNEL to "Active channel",
@@ -108,13 +104,6 @@ object StringsEn {
         StringKey.DETAIL_CHOOSE_CHANNEL to "Choose channel",
         StringKey.DETAIL_NOT_FOUND to "App not found",
         StringKey.DETAIL_NOT_FOUND_BODY to "This app is no longer available.",
-        StringKey.PERMISSION_LOCATION to "Location",
-        StringKey.PERMISSION_MICROPHONE to "Microphone",
-        StringKey.PERMISSION_CONTACTS to "Contacts",
-        StringKey.PERMISSION_VEHICLE_DATA to "Vehicle data",
-        StringKey.PERMISSION_NOTIFICATIONS to "Notifications",
-        StringKey.PERMISSION_STORAGE to "Storage",
-        StringKey.PERMISSION_PHONE to "Phone calls",
 
         StringKey.CHANNELS_TITLE to "{name} channels",
         StringKey.CHANNELS_SUBTITLE to "Choose which builds this app receives.",

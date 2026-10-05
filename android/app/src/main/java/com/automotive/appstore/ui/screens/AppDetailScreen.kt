@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,13 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.automotive.appstore.StoreViewModel
 import com.automotive.appstore.data.AppListing
 import com.automotive.appstore.data.AppState
@@ -41,7 +38,6 @@ import com.automotive.appstore.data.AppStatus
 import com.automotive.appstore.data.CatalogMapper
 import com.automotive.appstore.data.CatalogStatus
 import com.automotive.appstore.data.DEFAULT_CHANNEL_ID
-import com.automotive.appstore.data.PermissionId
 import com.automotive.appstore.data.StringKey
 import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.AppActionButton
@@ -419,7 +415,15 @@ private fun DetailTabButton(
     }
 }
 
-/** Description, screenshot carousel and permission chips. Port of the web `OverviewPanel`. */
+/**
+ * The app description. Port of the web `OverviewPanel`, minus two sections.
+ *
+ * **Screenshots** and **Permissions** have been removed. Neither is served by the catalogue:
+ * `CatalogMapper.toListing` maps `screenshots` and `permissions` to empty lists because `config.json`
+ * publishes no such fields, so both sections rendered as a heading followed by nothing — the heading
+ * plus an empty grid is worse than no heading at all. Restoring them means publishing the fields
+ * upstream; the composables below are kept so that is a data change rather than a rewrite.
+ */
 @Composable
 private fun OverviewPanel(app: AppListing) {
     Column(verticalArrangement = Arrangement.spacedBy(32.dp)) {
@@ -430,97 +434,7 @@ private fun OverviewPanel(app: AppListing) {
             color = storeColors.foreground,
             maxLines = 6,
         )
-
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = translator.t(StringKey.DETAIL_SCREENSHOTS),
-                // Web `text-2xl font-bold` = 27px; `display3` is Step7 = 36sp.
-                style = StoreType.xxlBold,
-                color = storeColors.foreground,
-                maxLines = 1,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                app.screenshots.forEachIndexed { index, resId ->
-                    AsyncImage(
-                        model = resId,
-                        contentDescription = translator.t(
-                            StringKey.DETAIL_SCREENSHOT_ALT,
-                            "name" to app.name,
-                            "n" to (index + 1),
-                        ),
-                        modifier = Modifier
-                            .width(storeMetrics.screenshotWidth)
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(storeColors.radiusLg))
-                            .background(storeColors.muted),
-                        contentScale = ContentScale.Crop,
-                    )
-                }
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = translator.t(StringKey.DETAIL_PERMISSIONS),
-                // Web `text-2xl font-bold`.
-                style = StoreType.xxlBold,
-                color = storeColors.foreground,
-                maxLines = 1,
-            )
-            app.permissions.chunked(4).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    row.forEach { permission ->
-                        PermissionChip(
-                            permission = permission,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    // Keep the last row's chips the same width as a full row.
-                    repeat(4 - row.size) { Box(modifier = Modifier.weight(1f)) }
-                }
-            }
-        }
     }
-}
-
-/** A permission row: muted glyph plus its localized name. */
-@Composable
-private fun PermissionChip(permission: PermissionId, modifier: Modifier = Modifier) {
-    val label = translator.t(permissionLabelKey(permission))
-
-    Row(
-        modifier = modifier
-            .height(76.dp)
-            .clip(RoundedCornerShape(storeColors.radiusLg))
-            .background(storeColors.card)
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Icon(
-            source = IconSource.Vector(StoreIcons.forPermission(permission)),
-            size = AutomotiveTheme.icon.primary,
-            color = storeColors.mutedForeground,
-        )
-        Text(
-            text = label,
-            // Web `text-lg font-medium` permission chip.
-            style = StoreType.lgMedium,
-            color = storeColors.foreground,
-            maxLines = 2,
-        )
-    }
-}
-
-/** Maps a [PermissionId] to its translation key. */
-private fun permissionLabelKey(permission: PermissionId): StringKey = when (permission) {
-    PermissionId.LOCATION -> StringKey.PERMISSION_LOCATION
-    PermissionId.MICROPHONE -> StringKey.PERMISSION_MICROPHONE
-    PermissionId.CONTACTS -> StringKey.PERMISSION_CONTACTS
-    PermissionId.VEHICLE_DATA -> StringKey.PERMISSION_VEHICLE_DATA
-    PermissionId.NOTIFICATIONS -> StringKey.PERMISSION_NOTIFICATIONS
-    PermissionId.STORAGE -> StringKey.PERMISSION_STORAGE
-    PermissionId.PHONE -> StringKey.PERMISSION_PHONE
 }
 
 /** The changelog for the currently selected channel. Port of the web `WhatsNewPanel`. */

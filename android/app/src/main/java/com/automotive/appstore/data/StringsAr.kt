@@ -18,7 +18,6 @@ object StringsAr {
         StringKey.THEME_TOGGLE_TO_NIGHT to "التبديل إلى الوضع الليلي",
 
         StringKey.TOPBAR_UPDATES_AVAILABLE to "تحديثات متاحة ({n})",
-        StringKey.TOPBAR_WIFI to "متصل بشبكة Wi-Fi",
         StringKey.TOPBAR_STORE_UPDATE_AVAILABLE to "يتوفر تحديث للمتجر",
 
         StringKey.CATEGORY_ALL to "الكل",
@@ -97,9 +96,6 @@ object StringsAr {
         StringKey.DETAIL_COMING_SOON_TITLE to "قريبًا",
         StringKey.DETAIL_COMING_SOON_BODY to "ملاحظات الإصدار غير متاحة بعد.",
         StringKey.DETAIL_CHANNELS to "القنوات",
-        StringKey.DETAIL_SCREENSHOTS to "لقطات الشاشة",
-        StringKey.DETAIL_SCREENSHOT_ALT to "لقطة شاشة {n} من {name}",
-        StringKey.DETAIL_PERMISSIONS to "الأذونات",
         StringKey.DETAIL_RELEASED_ON to "صدر في {date}",
         StringKey.DETAIL_NEW_IN to "الجديد في {version}",
         StringKey.DETAIL_ACTIVE_CHANNEL to "القناة النشطة",
@@ -107,14 +103,6 @@ object StringsAr {
         StringKey.DETAIL_CHOOSE_CHANNEL to "اختيار القناة",
         StringKey.DETAIL_NOT_FOUND to "التطبيق غير موجود",
         StringKey.DETAIL_NOT_FOUND_BODY to "لم يعد هذا التطبيق متاحًا.",
-
-        StringKey.PERMISSION_LOCATION to "الموقع",
-        StringKey.PERMISSION_MICROPHONE to "الميكروفون",
-        StringKey.PERMISSION_CONTACTS to "جهات الاتصال",
-        StringKey.PERMISSION_VEHICLE_DATA to "بيانات المركبة",
-        StringKey.PERMISSION_NOTIFICATIONS to "الإشعارات",
-        StringKey.PERMISSION_STORAGE to "التخزين",
-        StringKey.PERMISSION_PHONE to "المكالمات",
 
         StringKey.CHANNELS_TITLE to "قنوات {name}",
         StringKey.CHANNELS_SUBTITLE to "اختر الإصدارات التي يتلقاها هذا التطبيق.",
