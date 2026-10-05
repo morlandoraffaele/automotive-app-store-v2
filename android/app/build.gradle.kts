@@ -1,11 +1,11 @@
+import java.io.FileInputStream
+import java.io.InputStreamReader
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose)
 }
-
-import java.io.FileInputStream
-import java.io.InputStreamReader
-import java.util.Properties
 
 /**
  * Reads a key from a properties file, defaulting to `keystore.properties` at the root.

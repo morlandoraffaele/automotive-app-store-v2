@@ -158,6 +158,47 @@ class StoreRepository(
         }
     }
 
+    private val uninstallReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val packageName = intent?.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME) ?: return
+            val status = intent.getIntExtra(
+                PackageInstaller.EXTRA_STATUS,
+                PackageInstaller.STATUS_FAILURE,
+            )
+            val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+            Log.i(TAG, "APK uninstall broadcast: package=$packageName status=$status message=$message")
+
+            when (status) {
+                PackageInstaller.STATUS_SUCCESS -> refreshInstalled()
+
+                // The platform wants the user to confirm, e.g. when the store is neither the
+                // installer of record nor holding MANAGE_PROFILE_AND_DEVICE_OWNERS. The
+                // confirmation result is reconciled by [onAppResumed], as for ACTION_DELETE.
+                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    val confirmation: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(EXTRA_INTENT_KEY, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(EXTRA_INTENT_KEY)
+                    }
+                    if (confirmation != null) {
+                        application.startActivity(confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        Log.i(TAG, "Started the uninstall confirmation for $packageName")
+                    } else {
+                        Log.w(TAG, "Pending user action for $packageName but no EXTRA_INTENT")
+                        refreshInstalled()
+                    }
+                }
+
+                // Puts the record dropped by [uninstall] back, since the package is still there.
+                else -> {
+                    Log.e(TAG, "Uninstall of $packageName failed with status $status: $message")
+                    refreshInstalled()
+                }
+            }
+        }
+    }
+
     private var receiversRegistered = false
 
     /**
@@ -181,20 +222,27 @@ class StoreRepository(
      *   `PendingIntent` this app committed with. The broadcast therefore does not originate from
      *   our own UID, so a NOT_EXPORTED receiver would never see it and the install would hang on
      *   "Installing" forever. This is why the reference app registers it EXPORTED on API 33+.
+     * - `apk_uninstall_complete` is sent the same way by `PackageInstaller.uninstall`, so it is
+     *   EXPORTED for the same reason.
      */
     fun registerReceivers() {
         if (receiversRegistered) return
         val downloadFilter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         val installFilter = IntentFilter(ACTION_INSTALL_COMPLETE)
+        val uninstallFilter = IntentFilter(ACTION_UNINSTALL_COMPLETE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             application.registerReceiver(downloadReceiver, downloadFilter, Context.RECEIVER_EXPORTED)
             application.registerReceiver(installReceiver, installFilter, Context.RECEIVER_EXPORTED)
+            application.registerReceiver(uninstallReceiver, uninstallFilter, Context.RECEIVER_EXPORTED)
         } else {
             ContextCompat.registerReceiver(
                 application, downloadReceiver, downloadFilter, ContextCompat.RECEIVER_EXPORTED
             )
             ContextCompat.registerReceiver(
                 application, installReceiver, installFilter, ContextCompat.RECEIVER_EXPORTED
+            )
+            ContextCompat.registerReceiver(
+                application, uninstallReceiver, uninstallFilter, ContextCompat.RECEIVER_EXPORTED
             )
         }
         receiversRegistered = true
@@ -204,6 +252,7 @@ class StoreRepository(
         if (!receiversRegistered) return
         runCatching { application.unregisterReceiver(downloadReceiver) }
         runCatching { application.unregisterReceiver(installReceiver) }
+        runCatching { application.unregisterReceiver(uninstallReceiver) }
         receiversRegistered = false
     }
 
@@ -387,14 +436,16 @@ class StoreRepository(
      *
      * Two routes, mirroring [installRoute]'s precedence:
      *  - `DELETE_PACKAGES` is granted (a priv-app on the system partition, the production route):
-     *    `PackageInstaller.uninstall` runs silently, with no system dialog;
+     *    `PackageInstaller.uninstall` runs silently, with no system dialog, as long as the store
+     *    also holds `MANAGE_PROFILE_AND_DEVICE_OWNERS` or installed the app itself. Otherwise the
+     *    platform asks for confirmation, which [uninstallReceiver] starts;
      *  - otherwise the request is handed to the platform uninstaller via `ACTION_DELETE`, which
      *    shows the standard confirmation and works for any app.
      *
      * Either way the caller is left in a truthful state: the installed record is dropped from the
-     * snapshot immediately so the tile flips back to "Install" without waiting for the user to
-     * come back from the confirmation screen. If the user then cancels, [onAppResumed] re-reads
-     * `PackageManager` and puts the record back.
+     * snapshot immediately so the tile flips back to "Install" without waiting for the result. If
+     * the platform refuses, [uninstallReceiver] re-reads `PackageManager` and puts the record back;
+     * if the user cancels a confirmation, [onAppResumed] does.
      *
      * @return `true` when the removal was requested, `false` when it could not be started.
      */
@@ -423,24 +474,25 @@ class StoreRepository(
 
         if (canDeleteSilently()) {
             return try {
-                // `uninstall` needs an IntentSender for the result callback. A silent,
-                // already-privileged removal never surfaces a confirmation, so nothing has to read
-                // it; the flag is immutable because no system dialog needs to fill it in. The
-                // Intent is explicit and targets our own package so the callback stays inside this
-                // app, exactly as the install path does.
+                // The result arrives asynchronously in [uninstallReceiver]. The PendingIntent must
+                // be MUTABLE: the platform reports EXTRA_STATUS, EXTRA_STATUS_MESSAGE and, when a
+                // confirmation is needed, EXTRA_INTENT by filling it in, and an immutable one drops
+                // all of them. The Intent is explicit and targets our own package, which is what
+                // makes a mutable PendingIntent legal on Android 14+, as on the install path.
                 val resultIntent = Intent(ACTION_UNINSTALL_COMPLETE)
+                    .putExtra(PackageInstaller.EXTRA_PACKAGE_NAME, app.packageName)
                     .setPackage(application.packageName)
                 val sender = android.app.PendingIntent.getBroadcast(
                     application,
                     app.packageName.hashCode(),
                     resultIntent,
                     android.app.PendingIntent.FLAG_UPDATE_CURRENT or
-                        android.app.PendingIntent.FLAG_IMMUTABLE,
+                        android.app.PendingIntent.FLAG_MUTABLE,
                 ).intentSender
 
                 application.packageManager.packageInstaller
                     .uninstall(app.packageName, sender)
-                Log.i(TAG, "Uninstalled ${app.packageName} via PackageInstaller")
+                Log.i(TAG, "Requested uninstall of ${app.packageName} via PackageInstaller")
                 true
             } catch (e: SecurityException) {
                 // Not actually privileged after all — fall through to the platform uninstaller.
