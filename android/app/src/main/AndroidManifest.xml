@@ -27,6 +27,17 @@
     <uses-permission
         android:name="android.permission.MANAGE_PROFILE_AND_DEVICE_OWNERS"
         tools:ignore="ProtectedPermissions" />
+
+    <!--
+      Uninstalls remove the app for every user (DELETE_ALL_USERS), and the platform only accepts
+      that flag from a caller holding this permission once the device has more than one user. On
+      AAOS it always does: the store runs as the driver (user 10) while an APK sideloaded with adb
+      lands in user 0, and that copy still blocks installing an older versionCode. It is
+      signature-protected, so only the platform-signed build is granted it.
+    -->
+    <uses-permission
+        android:name="android.permission.INTERACT_ACROSS_USERS_FULL"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />

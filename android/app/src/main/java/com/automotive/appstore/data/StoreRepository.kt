@@ -6,7 +6,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.IntentSender
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
+import android.content.pm.VersionedPackage
 import android.support.v4.media.MediaBrowserCompat
 import android.database.Cursor
 import android.net.Uri
@@ -27,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.lang.reflect.InvocationTargetException
 
 
 /**
@@ -59,6 +63,12 @@ class StoreRepository(
          * `...SESSION_ID` and `android.intent.extra.INTENT`.
          */
         private const val EXTRA_INTENT_KEY = "android.intent.extra.INTENT"
+
+        /**
+         * Hidden `PackageManager.DELETE_ALL_USERS`: removes the package for every user instead of
+         * only the caller's. Needs `INTERACT_ACROSS_USERS_FULL` on a multi-user device.
+         */
+        private const val DELETE_ALL_USERS = 0x00000002
 
         private const val CATALOG_JOB = "catalog"
         private const val STORE_JOB = "store"
@@ -122,7 +132,8 @@ class StoreRepository(
                 PackageInstaller.EXTRA_STATUS,
                 PackageInstaller.STATUS_FAILURE,
             )
-            Log.i(TAG, "APK install broadcast: package=$packageName status=$status")
+            val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+            Log.i(TAG, "APK install broadcast: package=$packageName status=$status message=$message")
 
             when (status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
@@ -146,12 +157,7 @@ class StoreRepository(
                     onInstallCompletedOrCancelled(packageName, succeeded = true)
 
                 else -> {
-                    Log.e(
-                        TAG,
-                        "Install of $packageName failed with status $status " +
-                            "(1 = STATUS_FAILURE). The session was committed but the platform " +
-                            "refused it — check the appop/permission and the staged APK.",
-                    )
+                    Log.e(TAG, "Install of $packageName failed with status $status: $message")
                     onInstallCompletedOrCancelled(packageName, succeeded = false)
                 }
             }
@@ -169,7 +175,14 @@ class StoreRepository(
             Log.i(TAG, "APK uninstall broadcast: package=$packageName status=$status message=$message")
 
             when (status) {
-                PackageInstaller.STATUS_SUCCESS -> refreshInstalled()
+                PackageInstaller.STATUS_SUCCESS -> {
+                    refreshInstalled()
+                    // The removal cleared the way for a blocked downgrade: install it now.
+                    pendingDowngradeRemovals.remove(packageName)?.let { appId ->
+                        Log.i(TAG, "Removed the newer $packageName for all users; installing $appId")
+                        initiateInstallProcedure(appId, packageName)
+                    }
+                }
 
                 // The platform wants the user to confirm, e.g. when the store is neither the
                 // installer of record nor holding MANAGE_PROFILE_AND_DEVICE_OWNERS. The
@@ -187,6 +200,9 @@ class StoreRepository(
                     } else {
                         Log.w(TAG, "Pending user action for $packageName but no EXTRA_INTENT")
                         refreshInstalled()
+                        pendingDowngradeRemovals.remove(packageName)?.let { appId ->
+                            failTask(appId, "Could not remove the newer build already on the device.")
+                        }
                     }
                 }
 
@@ -194,6 +210,9 @@ class StoreRepository(
                 else -> {
                     Log.e(TAG, "Uninstall of $packageName failed with status $status: $message")
                     refreshInstalled()
+                    pendingDowngradeRemovals.remove(packageName)?.let { appId ->
+                        failTask(appId, "Could not remove the newer build already on the device: $message")
+                    }
                 }
             }
         }
@@ -208,6 +227,14 @@ class StoreRepository(
      * because [onAppResumed] also reconciles any still-`INSTALLING` task.
      */
     private var awaitingConsent: String? = null
+
+    /**
+     * Installs waiting on [uninstallForAllUsers] to remove a newer build first, by package name.
+     *
+     * Filled by [initiateInstallProcedure] when the staged APK would be a downgrade; drained by
+     * [uninstallReceiver], which resumes the install on success and fails the task otherwise.
+     */
+    private val pendingDowngradeRemovals = mutableMapOf<String, String>()
 
     init {
         registerReceivers()
@@ -432,7 +459,7 @@ class StoreRepository(
     fun update(appId: String) = startTask(appId, TaskKind.UPDATE)
 
     /**
-     * Removes an installed app from the device.
+     * Removes an installed app from the device, for every user.
      *
      * Two routes, mirroring [installRoute]'s precedence:
      *  - `DELETE_PACKAGES` is granted (a priv-app on the system partition, the production route):
@@ -474,25 +501,7 @@ class StoreRepository(
 
         if (canDeleteSilently()) {
             return try {
-                // The result arrives asynchronously in [uninstallReceiver]. The PendingIntent must
-                // be MUTABLE: the platform reports EXTRA_STATUS, EXTRA_STATUS_MESSAGE and, when a
-                // confirmation is needed, EXTRA_INTENT by filling it in, and an immutable one drops
-                // all of them. The Intent is explicit and targets our own package, which is what
-                // makes a mutable PendingIntent legal on Android 14+, as on the install path.
-                val resultIntent = Intent(ACTION_UNINSTALL_COMPLETE)
-                    .putExtra(PackageInstaller.EXTRA_PACKAGE_NAME, app.packageName)
-                    .setPackage(application.packageName)
-                val sender = android.app.PendingIntent.getBroadcast(
-                    application,
-                    app.packageName.hashCode(),
-                    resultIntent,
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or
-                        android.app.PendingIntent.FLAG_MUTABLE,
-                ).intentSender
-
-                application.packageManager.packageInstaller
-                    .uninstall(app.packageName, sender)
-                Log.i(TAG, "Requested uninstall of ${app.packageName} via PackageInstaller")
+                uninstallForAllUsers(app.packageName)
                 true
             } catch (e: SecurityException) {
                 // Not actually privileged after all — fall through to the platform uninstaller.
@@ -505,6 +514,54 @@ class StoreRepository(
         }
 
         return requestPlatformUninstall(app.packageName)
+    }
+
+    /**
+     * Asks `PackageInstaller` to remove [packageName] for every user; the result arrives
+     * asynchronously in [uninstallReceiver].
+     *
+     * The public `uninstall(String, IntentSender)` only removes the caller's user, which on AAOS
+     * leaves e.g. user 0's copy behind. The flags overload is `@SystemApi`, hence the reflection;
+     * hidden-API enforcement is disabled for the platform-signed build that holds
+     * `DELETE_PACKAGES` and `INTERACT_ACROSS_USERS_FULL`.
+     *
+     * @throws SecurityException when the platform refuses the caller.
+     */
+    private fun uninstallForAllUsers(packageName: String) {
+        // The PendingIntent must be MUTABLE: the platform reports EXTRA_STATUS,
+        // EXTRA_STATUS_MESSAGE and, when a confirmation is needed, EXTRA_INTENT by filling it in,
+        // and an immutable one drops all of them. The Intent is explicit and targets our own
+        // package, which is what makes a mutable PendingIntent legal on Android 14+, as on the
+        // install path.
+        val resultIntent = Intent(ACTION_UNINSTALL_COMPLETE)
+            .putExtra(PackageInstaller.EXTRA_PACKAGE_NAME, packageName)
+            .setPackage(application.packageName)
+        val sender = android.app.PendingIntent.getBroadcast(
+            application,
+            packageName.hashCode(),
+            resultIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                android.app.PendingIntent.FLAG_MUTABLE,
+        ).intentSender
+
+        try {
+            PackageInstaller::class.java
+                .getMethod(
+                    "uninstall",
+                    VersionedPackage::class.java,
+                    Int::class.javaPrimitiveType,
+                    IntentSender::class.java,
+                )
+                .invoke(
+                    application.packageManager.packageInstaller,
+                    VersionedPackage(packageName, PackageManager.VERSION_CODE_HIGHEST),
+                    DELETE_ALL_USERS,
+                    sender,
+                )
+        } catch (e: InvocationTargetException) {
+            throw e.targetException
+        }
+        Log.i(TAG, "Requested uninstall of $packageName for all users via PackageInstaller")
     }
 
     /** Whether this build holds `DELETE_PACKAGES`, the permission a silent uninstall needs. */
@@ -525,7 +582,9 @@ class StoreRepository(
         val intent = Intent(
             Intent.ACTION_DELETE,
             Uri.parse("package:$packageName"),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+            .putExtra(Intent.EXTRA_UNINSTALL_ALL_USERS, true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         return try {
             application.startActivity(intent)
@@ -1095,6 +1154,30 @@ class StoreRepository(
             }
 
             InstallRoute.PRIVILEGED, InstallRoute.USER_CONSENT -> Unit
+        }
+
+        // The platform refuses an older versionCode over a newer one, even when the newer copy
+        // belongs to another user (INSTALL_FAILED_VERSION_DOWNGRADE). The store's build wins:
+        // remove the newer one for every user first, and [uninstallReceiver] resumes from here.
+        // Compared against the staged APK, not the catalogue, whose versionCode is often a
+        // placeholder.
+        val stagedVersion = api.getArchiveVersionCode(apkFile)
+        val deviceVersion = api.getDeviceVersionCode(packageName)
+        if (stagedVersion != null && deviceVersion != null && deviceVersion > stagedVersion) {
+            Log.w(
+                TAG,
+                "$packageName $deviceVersion is on the device but the store has $stagedVersion; " +
+                    "removing it for all users before installing",
+            )
+            pendingDowngradeRemovals[packageName] = appId
+            try {
+                uninstallForAllUsers(packageName)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not remove the newer $packageName", e)
+                pendingDowngradeRemovals.remove(packageName)
+                failTask(appId, "A newer build is on the device and could not be removed.")
+            }
+            return
         }
 
         try {

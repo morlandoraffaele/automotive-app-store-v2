@@ -27,6 +27,9 @@ class AppRepository(
 ) {
     companion object {
         private const val TAG = "AppRepository"
+
+        /** Hidden `PackageManager.MATCH_ANY_USER`: match a package installed for any user. */
+        private const val MATCH_ANY_USER = 0x00400000
     }
 
     /**
@@ -100,6 +103,32 @@ class AppRepository(
             null
         }
     }
+
+    /**
+     * The `versionCode` of [packageName] if it is on the device for *any* user, or `null`.
+     *
+     * [getInstalledVersionCode] only sees the store's own user. A package is a single install
+     * device-wide, though: a newer copy held by another user (e.g. one sideloaded with adb into
+     * user 0 while the store runs as user 10) still makes the platform refuse an older APK with
+     * `INSTALL_FAILED_VERSION_DOWNGRADE`.
+     */
+    fun getDeviceVersionCode(packageName: String): Long? {
+        val flags = PackageManager.MATCH_UNINSTALLED_PACKAGES or MATCH_ANY_USER
+        return try {
+            val packageInfo: PackageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                context.packageManager.getPackageInfo(packageName, flags)
+            }
+            packageInfo.longVersionCode
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
+
+    /** The `versionCode` declared by the APK at [apk], or `null` when it cannot be parsed. */
+    fun getArchiveVersionCode(apk: java.io.File): Long? =
+        context.packageManager.getPackageArchiveInfo(apk.path, 0)?.longVersionCode
 
     fun saveDownloadId(packageName: String, downloadId: Long) {
         localDataStore.saveDownloadId(packageName, downloadId)
