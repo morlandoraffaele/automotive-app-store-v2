@@ -122,6 +122,8 @@ class StoreRepository(
     private val downloadManager: DownloadManager =
         application.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
 
+    private val overlays = OverlayEnabler(application)
+
     private val jobs = mutableMapOf<String, Job>()
     private val pollingJobs = mutableMapOf<String, Job>()
 
@@ -1005,6 +1007,7 @@ class StoreRepository(
         val landed = installedVersion != null &&
             CatalogMapper.isUpToDate(installedVersion, remoteVersion)
         api.clearDownloadId(packageName)
+        if (landed) enableIfOverlay(packageName)
         set { current ->
             val installed = current.installed + (
                 appId to InstalledRecord(
@@ -1343,6 +1346,7 @@ class StoreRepository(
      * from a version comparison that could not tell the difference.
      */
     private fun onInstallCompletedOrCancelled(packageName: String, succeeded: Boolean) {
+        if (succeeded) enableIfOverlay(packageName)
         val appId = _snapshot.value.catalog.apps
             .firstOrNull { it.packageName == packageName }?.id ?: return
         api.clearDownloadId(packageName)
@@ -1378,6 +1382,15 @@ class StoreRepository(
                 )
             }
         }
+    }
+
+    /**
+     * Enables [packageName] if it is an RRO, which an install into `/data` leaves disabled; an
+     * ordinary app is left alone. Runs in the background because the overlay manager registers the
+     * new overlay asynchronously. See [OverlayEnabler].
+     */
+    private fun enableIfOverlay(packageName: String) {
+        scope.launch { overlays.enableIfOverlay(packageName) }
     }
 
     private fun appRemoteVersionCode(appId: String): Int =
@@ -1458,6 +1471,7 @@ class StoreRepository(
             ) {
                 // It landed while we were away.
                 api.clearDownloadId(app.packageName)
+                enableIfOverlay(app.packageName)
                 set { current ->
                     current.copy(
                         tasks = current.tasks - appId,

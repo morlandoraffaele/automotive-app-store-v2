@@ -38,6 +38,14 @@
     <uses-permission
         android:name="android.permission.INTERACT_ACROSS_USERS_FULL"
         tools:ignore="ProtectedPermissions" />
+    <!--
+      Lets the store enable the RROs it installs (OverlayEnabler): an overlay installed into /data
+      starts disabled. The targets' <overlayable> names no actor, so the platform checks only this
+      permission. It is signature|privileged, so only the platform-signed build is granted it.
+    -->
+    <uses-permission
+        android:name="android.permission.CHANGE_OVERLAY_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />

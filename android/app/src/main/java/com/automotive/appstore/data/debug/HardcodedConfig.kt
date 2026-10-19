@@ -113,9 +113,51 @@ object HardcodedConfig {
             "versionCode": 3045,
             "type": "media",
             "channel": "demo"
+          },
+          "$OVERLAY_LAUNCHER": {
+            "id": "5d0c2b7e-1f43-5a8e-b6d2-9e4f7a3c1b01",
+            "name": "Radioplayer Media Overlay (Launcher)",
+            "description": "RRO adding Radioplayer to the launcher's custom_media_packages.",
+            "organization": "Radioplayer",
+            "packageName": "$OVERLAY_LAUNCHER",
+            "cls": "",
+            "url": "$OVERLAY_HOST/RadioplayerCustomMedia-launcher.apk",
+            "icon": "",
+            "versionName": "1.0",
+            "versionCode": $OVERLAY_VERSION_CODE,
+            "type": "custom",
+            "channel": "stable"
+          },
+          "$OVERLAY_MEDIA": {
+            "id": "5d0c2b7e-1f43-5a8e-b6d2-9e4f7a3c1b02",
+            "name": "Radioplayer Media Overlay (Media)",
+            "description": "RRO adding Radioplayer to the media app's custom_media_packages.",
+            "organization": "Radioplayer",
+            "packageName": "$OVERLAY_MEDIA",
+            "cls": "",
+            "url": "$OVERLAY_HOST/RadioplayerCustomMedia-media.apk",
+            "icon": "",
+            "versionName": "1.0",
+            "versionCode": $OVERLAY_VERSION_CODE,
+            "type": "custom",
+            "channel": "stable"
           }
         }
     """.trimIndent()
+
+    /**
+     * The custom_media_packages RROs (`OEM/Kineton/RRO/custom_media_packages`, built with
+     * `./rro.fish build`), served from the development machine so the overlay install-and-enable
+     * path ([com.automotive.appstore.data.OverlayEnabler]) can be exercised before they are
+     * published. Serve `out/` with `python3 -m http.server 8080` and run
+     * `adb reverse tcp:8080 tcp:8080`; the debug build allows cleartext to 127.0.0.1 only.
+     */
+    private const val OVERLAY_HOST = "http://127.0.0.1:8080"
+    private const val OVERLAY_LAUNCHER = "org.radioplayer.automotive.radio.rro.custommedia.launcher"
+    private const val OVERLAY_MEDIA = "org.radioplayer.automotive.radio.rro.custommedia.media"
+
+    /** Must match the overlays' `./rro.fish build -c` value. */
+    private const val OVERLAY_VERSION_CODE = 1
 
     /**
      * [payload] mapped through the same `AppDetails` shape the endpoint returns.

@@ -380,7 +380,7 @@ class CatalogMapperTest {
     @Test
     fun `the hardcoded config parses into the same shape as the endpoint`() {
         val apps = HardcodedConfig.apps(storeVersionCode = 99)
-        assertEquals(5, apps.size)
+        assertEquals(7, apps.size) // 5 apps + the 2 custom_media_packages overlays
         val store = apps.first { it.key == STORE_APP_PACKAGE }
         assertEquals(STORE_APP_PACKAGE, store.details.packageName)
         assertEquals(99, store.details.remoteVersionCode)
