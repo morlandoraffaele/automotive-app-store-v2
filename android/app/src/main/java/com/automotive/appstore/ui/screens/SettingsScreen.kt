@@ -1,5 +1,6 @@
 package com.automotive.appstore.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,10 +19,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -41,6 +46,7 @@ import com.automotive.appstore.data.getAppState
 import com.automotive.appstore.ui.components.ProgressRing
 import com.automotive.appstore.ui.components.SkeletonBlock
 import com.automotive.appstore.ui.components.StoreIcons
+import com.automotive.appstore.ui.components.TapFeedback
 import com.automotive.appstore.ui.components.TouchButton
 import com.automotive.appstore.ui.components.TouchVariant
 import com.automotive.appstore.ui.components.rememberTapTracker
@@ -74,8 +80,30 @@ fun SettingsScreen(
 
     // Display, Language and Demo are developer affordances. They stay hidden until the user taps
     // the store version row 20 times; the tracker lives in memory only, so a process restart
-    // re-hides them.
-    val advancedTracker = rememberTapTracker()
+    // re-hides them. Each tap near the end gets Android's build-number style countdown toast.
+    val context = LocalContext.current
+    val currentTranslator = translator
+    // The previous toast is cancelled before the next is shown, as Android Settings does, so a
+    // fast tap sequence does not queue up a backlog of stale countdowns.
+    var devModeToast by remember { mutableStateOf<Toast?>(null) }
+    val advancedTracker = rememberTapTracker(
+        onFeedback = { feedback ->
+            val text = when (feedback) {
+                TapFeedback.None -> null
+                is TapFeedback.StepsAway -> if (feedback.remaining == 1) {
+                    currentTranslator.t(StringKey.DEV_MODE_STEP_AWAY)
+                } else {
+                    currentTranslator.t(StringKey.DEV_MODE_STEPS_AWAY, "n" to feedback.remaining)
+                }
+                TapFeedback.Unlocked -> currentTranslator.t(StringKey.DEV_MODE_ENABLED)
+                TapFeedback.AlreadyUnlocked -> currentTranslator.t(StringKey.DEV_MODE_ALREADY_ENABLED)
+            }
+            if (text != null) {
+                devModeToast?.cancel()
+                devModeToast = Toast.makeText(context, text, Toast.LENGTH_SHORT).also { it.show() }
+            }
+        },
+    )
     val advancedUnlocked = advancedTracker.unlocked
 
     LazyColumn(
@@ -135,6 +163,19 @@ fun SettingsScreen(
         }
 
         if (advancedUnlocked) {
+            item {
+                SettingsSection(title = translator.t(StringKey.SETTINGS_DEV_MODE)) {
+                    // Always on while visible: switching it off hides every developer section,
+                    // this one included, until the version row is tapped 20 times again.
+                    ToggleRow(
+                        label = translator.t(StringKey.SETTINGS_DEV_MODE),
+                        description = translator.t(StringKey.SETTINGS_DEV_MODE_DESC),
+                        checked = true,
+                        onChange = { advancedTracker.lock() },
+                    )
+                }
+            }
+
             item {
                 SettingsSection(title = translator.t(StringKey.SETTINGS_DISPLAY)) {
                     SegmentedRow(

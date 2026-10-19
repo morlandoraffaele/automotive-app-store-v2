@@ -154,5 +154,12 @@ object StringsAr {
         StringKey.SETTINGS_SIM_LOADING to "تحميل",
         StringKey.SETTINGS_SIM_EMPTY to "فارغ",
         StringKey.SETTINGS_SIM_ERROR to "خطأ",
+        StringKey.SETTINGS_DEV_MODE to "وضع المطوّر",
+        StringKey.SETTINGS_DEV_MODE_DESC to
+            "أوقفه لإخفاء هذه الأقسام. انقر على إصدار المتجر مجددًا لإعادة تشغيله.",
+        StringKey.DEV_MODE_STEPS_AWAY to "تفصلك {n} خطوات عن وضع المطوّر.",
+        StringKey.DEV_MODE_STEP_AWAY to "تفصلك خطوة واحدة عن وضع المطوّر.",
+        StringKey.DEV_MODE_ENABLED to "أنت الآن في وضع المطوّر!",
+        StringKey.DEV_MODE_ALREADY_ENABLED to "لا حاجة، وضع المطوّر مفعّل بالفعل.",
     )
 }

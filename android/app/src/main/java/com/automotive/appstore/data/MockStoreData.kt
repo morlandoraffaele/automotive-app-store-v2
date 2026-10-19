@@ -421,7 +421,7 @@ object MockStoreData {
 
     val DEFAULT_SETTINGS = StoreSettings(
         autoUpdate = true,
-        wifiOnly = true,
+        wifiOnly = false,
         theme = ThemeMode.NIGHT,
         locale = Locale.EN,
         simulation = CatalogSimulation.NORMAL,

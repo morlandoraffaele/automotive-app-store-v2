@@ -85,4 +85,14 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setHardcodedStoreVersion(versionCode: Int?) =
         repository.setHardcodedStoreVersion(versionCode)
+
+    /**
+     * The repository registers its receivers on the Application, so without this a finished
+     * activity's repository kept receiving every download and install broadcast. Each relaunch in
+     * the same process then added one more repository installing the same download.
+     */
+    override fun onCleared() {
+        repository.dispose()
+        super.onCleared()
+    }
 }

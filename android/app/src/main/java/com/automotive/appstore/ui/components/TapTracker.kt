@@ -5,7 +5,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 
@@ -27,6 +29,27 @@ object AdvancedSettingsUnlock {
 
     /** A gap longer than this restarts the sequence. Recommended value agreed with the requester. */
     const val ADVANCED_TAP_RESET_MS: Long = 3_000L
+
+    /**
+     * Remaining taps at which the countdown popup starts, like Android's "You are now N steps away
+     * from being a developer". Earlier taps stay silent so the gesture is not advertised.
+     */
+    const val COUNTDOWN_FROM: Int = 5
+}
+
+/** What a tap on the version row should tell the user, mirroring Android's build-number toasts. */
+sealed interface TapFeedback {
+    /** Too early in the sequence to say anything. */
+    data object None : TapFeedback
+
+    /** [remaining] more taps unlock developer mode. */
+    data class StepsAway(val remaining: Int) : TapFeedback
+
+    /** This tap unlocked developer mode. */
+    data object Unlocked : TapFeedback
+
+    /** Developer mode was already on. */
+    data object AlreadyUnlocked : TapFeedback
 }
 
 /**
@@ -77,6 +100,22 @@ class TapSequence(
         return taps
     }
 
+    /**
+     * Records a tap at [nowMs] and says what the user should be told about it.
+     *
+     * @param countdownFrom remaining taps at which [TapFeedback.StepsAway] starts being reported.
+     */
+    fun register(
+        nowMs: Long,
+        countdownFrom: Int = AdvancedSettingsUnlock.COUNTDOWN_FROM,
+    ): TapFeedback {
+        if (unlocked) return TapFeedback.AlreadyUnlocked
+        tap(nowMs)
+        if (unlocked) return TapFeedback.Unlocked
+        val remaining = required - taps
+        return if (remaining <= countdownFrom) TapFeedback.StepsAway(remaining) else TapFeedback.None
+    }
+
     /** True when [nowMs] is past the reset window, so the banked taps no longer count. */
     fun isExpired(nowMs: Long): Boolean =
         taps > 0 && lastTapAt != Long.MIN_VALUE && nowMs - lastTapAt > resetAfterMs
@@ -85,11 +124,21 @@ class TapSequence(
      * Drops the banked taps and re-locks.
      *
      * Only called while still counting — once [unlocked] it must not be called, which is what keeps
-     * a completed unlock latched.
+     * a completed unlock latched. Turning developer mode off on purpose goes through [lock].
      */
     fun reset() {
         taps = 0
         unlocked = false
+    }
+
+    /**
+     * Turns developer mode off, so the full gesture is needed again to turn it back on.
+     *
+     * Also forgets the last tap, so taps made while unlocked do not count towards the next unlock.
+     */
+    fun lock() {
+        reset()
+        lastTapAt = Long.MIN_VALUE
     }
 }
 
@@ -98,15 +147,19 @@ class TapSequence(
  *
  * [TapTracker.unlocked] flips true once [required] taps land inside the rolling window. The caller
  * wires [TapTracker.registerTap] to its gesture and reads `unlocked` to decide what to show; no
- * other state has to be threaded through the screen.
+ * other state has to be threaded through the screen. [TapTracker.lock] turns it back off.
  */
 class TapTracker internal constructor(
     val taps: Int,
     val unlocked: Boolean,
     private val register: () -> Unit,
+    private val relock: () -> Unit,
 ) {
     /** Records one tap. Safe to call from any click handler. */
     fun registerTap() = register()
+
+    /** Turns developer mode off; the full gesture turns it back on. */
+    fun lock() = relock()
 }
 
 /**
@@ -114,17 +167,35 @@ class TapTracker internal constructor(
  *
  * @param required taps needed to unlock.
  * @param resetAfterMs a gap longer than this restarts the sequence.
+ * @param onFeedback told what each tap means, to show Android's build-number style popup.
  */
 @Composable
 fun rememberTapTracker(
     required: Int = AdvancedSettingsUnlock.REQUIRED_TAPS,
     resetAfterMs: Long = AdvancedSettingsUnlock.ADVANCED_TAP_RESET_MS,
+    onFeedback: (TapFeedback) -> Unit = {},
 ): TapTracker {
     val sequence = remember(required, resetAfterMs) { TapSequence(required, resetAfterMs) }
     var taps by remember { mutableIntStateOf(0) }
+    // Mirrors sequence.unlocked as Compose state, so locking recomposes even when `taps` is
+    // already 0.
+    var unlocked by remember { mutableStateOf(false) }
+    val currentOnFeedback by rememberUpdatedState(onFeedback)
 
     val register: () -> Unit = remember(sequence) {
-        { taps = sequence.tap(System.currentTimeMillis()) }
+        {
+            val feedback = sequence.register(System.currentTimeMillis())
+            taps = sequence.taps
+            unlocked = sequence.unlocked
+            currentOnFeedback(feedback)
+        }
+    }
+    val relock: () -> Unit = remember(sequence) {
+        {
+            sequence.lock()
+            taps = 0
+            unlocked = false
+        }
     }
 
     // Idle fallback: expires the sequence even if no further tap ever arrives. Keying on `taps`
@@ -143,7 +214,8 @@ fun rememberTapTracker(
 
     return TapTracker(
         taps = taps,
-        unlocked = sequence.unlocked,
+        unlocked = unlocked,
         register = register,
+        relock = relock,
     )
 }

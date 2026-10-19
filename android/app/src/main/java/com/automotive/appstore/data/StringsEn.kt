@@ -155,5 +155,12 @@ object StringsEn {
         StringKey.SETTINGS_SIM_LOADING to "Loading",
         StringKey.SETTINGS_SIM_EMPTY to "Empty",
         StringKey.SETTINGS_SIM_ERROR to "Error",
+        StringKey.SETTINGS_DEV_MODE to "Developer mode",
+        StringKey.SETTINGS_DEV_MODE_DESC to
+            "Turn off to hide these sections. Tap the store version again to turn it back on.",
+        StringKey.DEV_MODE_STEPS_AWAY to "You are now {n} steps away from developer mode.",
+        StringKey.DEV_MODE_STEP_AWAY to "You are now 1 step away from developer mode.",
+        StringKey.DEV_MODE_ENABLED to "You are now in developer mode!",
+        StringKey.DEV_MODE_ALREADY_ENABLED to "No need, developer mode is already on.",
     )
 }

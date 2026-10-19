@@ -123,6 +123,10 @@ class AppRepository(
             packageInfo.longVersionCode
         } catch (e: PackageManager.NameNotFoundException) {
             null
+        } catch (e: SecurityException) {
+            // MATCH_ANY_USER needs INTERACT_ACROSS_USERS_FULL, which only the platform build has.
+            Log.w(TAG, "Cannot look up $packageName across users", e)
+            null
         }
     }
 

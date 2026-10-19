@@ -15,6 +15,8 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Process
+import android.os.UserHandle
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -69,6 +71,19 @@ class StoreRepository(
          * only the caller's. Needs `INTERACT_ACROSS_USERS_FULL` on a multi-user device.
          */
         private const val DELETE_ALL_USERS = 0x00000002
+
+        /** Marks an uninstall result that came from the retry run as the system user. */
+        private const val EXTRA_AS_SYSTEM_USER = "com.automotive.appstore.extra.AS_SYSTEM_USER"
+
+        /**
+         * Install failures that a wipe of the package can cure: a newer or differently-signed copy
+         * on the device, possibly for another user only. A downgrade refused at session
+         * verification comes back as plain `STATUS_FAILURE`, hence its inclusion. Aborted (the user
+         * cancelled), invalid-APK and storage failures are left alone: wiping would not fix them.
+         */
+        private val WIPEABLE_INSTALL_FAILURES = setOf(
+            PackageInstaller.STATUS_FAILURE,
+        )
 
         private const val CATALOG_JOB = "catalog"
         private const val STORE_JOB = "store"
@@ -153,11 +168,21 @@ class StoreRepository(
                     }
                 }
 
-                PackageInstaller.STATUS_SUCCESS ->
+                PackageInstaller.STATUS_SUCCESS -> {
+                    wipedForInstall.remove(packageName)
                     onInstallCompletedOrCancelled(packageName, succeeded = true)
+                }
 
                 else -> {
                     Log.e(TAG, "Install of $packageName failed with status $status: $message")
+                    // Once per install: wipe every copy of the package, for every user, and
+                    // install again into a clean state. A second failure is final.
+                    if (status in WIPEABLE_INSTALL_FAILURES && wipedForInstall.add(packageName)) {
+                        val appId = _snapshot.value.catalog.apps
+                            .firstOrNull { it.packageName == packageName }?.id
+                        if (appId != null && wipeThenInstall(appId, packageName)) return
+                    }
+                    wipedForInstall.remove(packageName)
                     onInstallCompletedOrCancelled(packageName, succeeded = false)
                 }
             }
@@ -178,8 +203,8 @@ class StoreRepository(
                 PackageInstaller.STATUS_SUCCESS -> {
                     refreshInstalled()
                     // The removal cleared the way for a blocked downgrade: install it now.
-                    pendingDowngradeRemovals.remove(packageName)?.let { appId ->
-                        Log.i(TAG, "Removed the newer $packageName for all users; installing $appId")
+                    pendingInstallsAfterWipe.remove(packageName)?.let { appId ->
+                        Log.i(TAG, "Removed $packageName for all users; installing $appId")
                         initiateInstallProcedure(appId, packageName)
                     }
                 }
@@ -200,7 +225,7 @@ class StoreRepository(
                     } else {
                         Log.w(TAG, "Pending user action for $packageName but no EXTRA_INTENT")
                         refreshInstalled()
-                        pendingDowngradeRemovals.remove(packageName)?.let { appId ->
+                        pendingInstallsAfterWipe.remove(packageName)?.let { appId ->
                             failTask(appId, "Could not remove the newer build already on the device.")
                         }
                     }
@@ -209,9 +234,21 @@ class StoreRepository(
                 // Puts the record dropped by [uninstall] back, since the package is still there.
                 else -> {
                     Log.e(TAG, "Uninstall of $packageName failed with status $status: $message")
+                    // Run from the store's own user, the platform resolves the package for that
+                    // user and can report it missing although another user still has it. The
+                    // system user sees it either way, so try once more from there.
+                    val asSystemUser = intent.getBooleanExtra(EXTRA_AS_SYSTEM_USER, false)
+                    if (!asSystemUser && Process.myUserHandle() != UserHandle.of(0)) {
+                        try {
+                            uninstallForAllUsers(packageName, asSystemUser = true)
+                            return
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Could not retry the uninstall of $packageName as user 0", e)
+                        }
+                    }
                     refreshInstalled()
-                    pendingDowngradeRemovals.remove(packageName)?.let { appId ->
-                        failTask(appId, "Could not remove the newer build already on the device: $message")
+                    pendingInstallsAfterWipe.remove(packageName)?.let { appId ->
+                        failTask(appId, "Could not remove the build already on the device: $message")
                     }
                 }
             }
@@ -229,12 +266,19 @@ class StoreRepository(
     private var awaitingConsent: String? = null
 
     /**
-     * Installs waiting on [uninstallForAllUsers] to remove a newer build first, by package name.
+     * Installs waiting on [wipeThenInstall] to remove every copy of the package first, by package
+     * name.
      *
-     * Filled by [initiateInstallProcedure] when the staged APK would be a downgrade; drained by
+     * Filled when the staged APK would be a downgrade or when an install failed; drained by
      * [uninstallReceiver], which resumes the install on success and fails the task otherwise.
      */
-    private val pendingDowngradeRemovals = mutableMapOf<String, String>()
+    private val pendingInstallsAfterWipe = mutableMapOf<String, String>()
+
+    /**
+     * Packages whose failed install has already triggered a wipe-and-retry, so a second failure
+     * is reported instead of looping. Cleared when the install finally succeeds or fails.
+     */
+    private val wipedForInstall = mutableSetOf<String>()
 
     init {
         registerReceivers()
@@ -525,9 +569,12 @@ class StoreRepository(
      * hidden-API enforcement is disabled for the platform-signed build that holds
      * `DELETE_PACKAGES` and `INTERACT_ACROSS_USERS_FULL`.
      *
+     * [asSystemUser] issues the request as user 0 instead of the store's own user, through a
+     * `createContextAsUser` context (`@SystemApi` as well, allowed by `INTERACT_ACROSS_USERS_FULL`).
+     *
      * @throws SecurityException when the platform refuses the caller.
      */
-    private fun uninstallForAllUsers(packageName: String) {
+    private fun uninstallForAllUsers(packageName: String, asSystemUser: Boolean = false) {
         // The PendingIntent must be MUTABLE: the platform reports EXTRA_STATUS,
         // EXTRA_STATUS_MESSAGE and, when a confirmation is needed, EXTRA_INTENT by filling it in,
         // and an immutable one drops all of them. The Intent is explicit and targets our own
@@ -535,6 +582,7 @@ class StoreRepository(
         // install path.
         val resultIntent = Intent(ACTION_UNINSTALL_COMPLETE)
             .putExtra(PackageInstaller.EXTRA_PACKAGE_NAME, packageName)
+            .putExtra(EXTRA_AS_SYSTEM_USER, asSystemUser)
             .setPackage(application.packageName)
         val sender = android.app.PendingIntent.getBroadcast(
             application,
@@ -545,6 +593,13 @@ class StoreRepository(
         ).intentSender
 
         try {
+            val context: Context = if (asSystemUser) {
+                Context::class.java
+                    .getMethod("createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType)
+                    .invoke(application, UserHandle.of(0), 0) as Context
+            } else {
+                application
+            }
             PackageInstaller::class.java
                 .getMethod(
                     "uninstall",
@@ -553,7 +608,7 @@ class StoreRepository(
                     IntentSender::class.java,
                 )
                 .invoke(
-                    application.packageManager.packageInstaller,
+                    context.packageManager.packageInstaller,
                     VersionedPackage(packageName, PackageManager.VERSION_CODE_HIGHEST),
                     DELETE_ALL_USERS,
                     sender,
@@ -561,7 +616,29 @@ class StoreRepository(
         } catch (e: InvocationTargetException) {
             throw e.targetException
         }
-        Log.i(TAG, "Requested uninstall of $packageName for all users via PackageInstaller")
+        Log.i(
+            TAG,
+            "Requested uninstall of $packageName for all users via PackageInstaller" +
+                if (asSystemUser) " as user 0" else "",
+        )
+    }
+
+    /**
+     * Removes every copy of [packageName], for every user, then installs [appId]'s staged APK
+     * again from [uninstallReceiver].
+     *
+     * @return `false` when the removal could not even be requested.
+     */
+    private fun wipeThenInstall(appId: String, packageName: String): Boolean {
+        pendingInstallsAfterWipe[packageName] = appId
+        return try {
+            uninstallForAllUsers(packageName)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not remove $packageName before installing", e)
+            pendingInstallsAfterWipe.remove(packageName)
+            false
+        }
     }
 
     /** Whether this build holds `DELETE_PACKAGES`, the permission a silent uninstall needs. */
@@ -1025,6 +1102,10 @@ class StoreRepository(
             api.getDownloadId(app.packageName) == downloadId
         } ?: return
 
+        // [pollDownload] may have seen the download finish first and already committed the
+        // session; installing again here would commit a second one for the same APK.
+        if (_snapshot.value.tasks[entry.id]?.phase == TaskPhase.INSTALLING) return
+
         val kind = _snapshot.value.tasks[entry.id]?.kind ?: TaskKind.INSTALL
         pollingJobs.remove(entry.id)?.cancel()
 
@@ -1169,12 +1250,7 @@ class StoreRepository(
                 "$packageName $deviceVersion is on the device but the store has $stagedVersion; " +
                     "removing it for all users before installing",
             )
-            pendingDowngradeRemovals[packageName] = appId
-            try {
-                uninstallForAllUsers(packageName)
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not remove the newer $packageName", e)
-                pendingDowngradeRemovals.remove(packageName)
+            if (!wipeThenInstall(appId, packageName)) {
                 failTask(appId, "A newer build is on the device and could not be removed.")
             }
             return
@@ -1226,28 +1302,17 @@ class StoreRepository(
                 setPackage(application.packageName)
             }
 
-            // The mutability flag is route-dependent.
-            //
-            // PRIVILEGED installs silently, so an immutable PendingIntent is correct and safer.
-            //
-            // USER_CONSENT cannot: on that route the platform hands back a confirmation Intent in
-            // EXTRA_INTENT by filling in *this* PendingIntent, and an immutable one cannot be
-            // filled in — the session simply never gets confirmed. This is the same Android 14 area
-            // the reference app's "fix: Android 14 Intent" commit touched; it went the other way
-            // because it is always privileged and never needs the confirmation.
-            val consentRoute = installRoute() != InstallRoute.PRIVILEGED
-            val pendingIntentFlags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or
-                if (consentRoute) {
-                    android.app.PendingIntent.FLAG_MUTABLE
-                } else {
-                    android.app.PendingIntent.FLAG_IMMUTABLE
-                }
-
+            // MUTABLE on every route, PRIVILEGED included: the platform reports EXTRA_STATUS,
+            // EXTRA_STATUS_MESSAGE and, on USER_CONSENT, the confirmation Intent in EXTRA_INTENT by
+            // filling in *this* PendingIntent. An immutable one drops all of them, so a silent
+            // privileged install that succeeded arrived as the receiver's STATUS_FAILURE default
+            // (status=1, message=null) and the store wiped and reinstalled a good install. The
+            // Intent is explicit, which is what makes MUTABLE legal on Android 14+.
             val pendingIntent = android.app.PendingIntent.getBroadcast(
                 application,
                 sessionId,
                 broadcastIntent,
-                pendingIntentFlags,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE,
             )
 
             // Only clear the consent latch once the session is genuinely committed, so a failure

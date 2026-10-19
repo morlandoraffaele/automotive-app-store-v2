@@ -1,6 +1,7 @@
 package com.automotive.appstore
 
 import com.automotive.appstore.ui.components.AdvancedSettingsUnlock
+import com.automotive.appstore.ui.components.TapFeedback
 import com.automotive.appstore.ui.components.TapSequence
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -117,5 +118,41 @@ class TapSequenceTest {
         }
         assertTrue(sequence.isExpired(nowMs = 100_000L))
         assertFalse(sequence.unlocked)
+    }
+
+    @Test
+    fun `counts down the last steps like Android's build number`() {
+        val sequence = TapSequence()
+        val required = AdvancedSettingsUnlock.REQUIRED_TAPS
+        val countdownFrom = AdvancedSettingsUnlock.COUNTDOWN_FROM
+        val feedback = (0 until required).map { i -> sequence.register(nowMs = i * 100L) }
+
+        // Silent until the countdown starts, so the gesture is not advertised.
+        feedback.take(required - countdownFrom - 1).forEach { assertEquals(TapFeedback.None, it) }
+        assertEquals(
+            (countdownFrom downTo 1).map { TapFeedback.StepsAway(it) },
+            feedback.subList(required - countdownFrom - 1, required - 1),
+        )
+        assertEquals(TapFeedback.Unlocked, feedback.last())
+        assertEquals(TapFeedback.AlreadyUnlocked, sequence.register(nowMs = required * 100L))
+    }
+
+    @Test
+    fun `lock turns developer mode off until the full gesture is repeated`() {
+        val sequence = TapSequence()
+        val required = AdvancedSettingsUnlock.REQUIRED_TAPS
+        repeat(required) { i -> sequence.register(nowMs = i * 100L) }
+        assertTrue(sequence.unlocked)
+
+        sequence.lock()
+        assertFalse(sequence.unlocked)
+        assertEquals(0, sequence.taps)
+
+        // A quick follow-up tap starts a fresh sequence rather than resuming the old one.
+        assertEquals(TapFeedback.None, sequence.register(nowMs = required * 100L))
+        assertEquals(1, sequence.taps)
+        repeat(required - 2) { i -> sequence.register(nowMs = (required + 1 + i) * 100L) }
+        assertFalse(sequence.unlocked)
+        assertEquals(TapFeedback.Unlocked, sequence.register(nowMs = (2 * required) * 100L))
     }
 }
